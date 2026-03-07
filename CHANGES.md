@@ -2,11 +2,13 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
-## [Unreleased]
+## [0.3.0] - 2026-03-07
 
 ### Changed
 
 - Removed the build-time env API key mode and kept saved Thunderbird storage as the only supported key path
+- Switched local packaging to a cross-platform Node-based `.xpi` builder
+- Added beginner-focused setup and installation docs, contributor guidance, and a manual release build workflow
 
 ## [0.2.0] - 2026-03-07
 

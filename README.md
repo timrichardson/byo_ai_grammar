@@ -76,7 +76,7 @@ npm run package
 That produces a file like:
 
 ```text
-mozilla_byo_ai_grammar-0.2.0.xpi
+mozilla_byo_ai_grammar-0.3.0.xpi
 ```
 
 ## Install In Thunderbird
