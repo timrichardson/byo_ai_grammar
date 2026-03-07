@@ -55,14 +55,6 @@
           <summary>Advanced connection settings</summary>
           <div class="advanced-grid">
             <label class="field">
-              <span>API key source</span>
-              <select id="apiKeySource">
-                <option value="saved">Save API key in Thunderbird</option>
-                <option value="env">Use build-time env key</option>
-              </select>
-            </label>
-
-            <label class="field">
               <span>Server URL</span>
               <input type="url" id="baseUrl" placeholder="https://api.together.xyz/v1">
             </label>
@@ -75,13 +67,7 @@
             <label class="field full-width">
               <span>API key</span>
               <input type="password" id="apiKey" placeholder="Paste your API key">
-              <small id="apiKeyHelp">Saved API keys are stored in Thunderbird extension local storage in your profile. This is convenient, but it is not protected by an OS keychain or hardware-backed secret store.</small>
-            </label>
-
-            <label class="field full-width" id="envKeyField">
-              <span>Build-time env key</span>
-              <input type="text" id="envKeyName" value="MOZILLA_BYO_AI_GRAMMAR_API_KEY" readonly>
-              <small>Thunderbird add-ons cannot read OS environment variables at runtime. This option only uses the value that was present for <code>MOZILLA_BYO_AI_GRAMMAR_API_KEY</code> when you last ran <code>npm run build</code>. It is a convenience for local development, not stronger secret storage.</small>
+              <small id="apiKeyHelp">API keys are stored in Thunderbird extension local storage inside your profile. This is convenient, but it is not protected by an OS keychain or hardware-backed secret store.</small>
             </label>
 
             <label class="field full-width">

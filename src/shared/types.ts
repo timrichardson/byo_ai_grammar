@@ -13,7 +13,6 @@ export type Settings = {
   enabled: boolean;
   baseUrl: string;
   apiKey: string;
-  apiKeySource: "saved" | "env";
   model: string;
   checkCurrentParagraphOnly: boolean;
   debounceMs: number;

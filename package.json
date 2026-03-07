@@ -1,11 +1,11 @@
 {
   "name": "mozilla_byo_ai_grammar",
   "version": "0.2.0",
-  "description": "Thunderbird extension for inline grammar suggestions via OpenAI-API-yes compatible language models, bring your own key",
+  "description": "Thunderbird extension for inline grammar suggestions via OpenAI-compatible language models, bring your own key",
   "main": "index.js",
   "scripts": {
     "build": "node esbuild.mjs",
-    "package": "npm run build && python3 scripts/package_xpi.py",
+    "package": "npm run build && node scripts/package_xpi.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
@@ -17,7 +17,8 @@
   "devDependencies": {
     "@types/firefox-webext-browser": "^143.0.0",
     "esbuild": "^0.27.3",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "yazl": "^3.3.1"
   },
   "private": true
 }

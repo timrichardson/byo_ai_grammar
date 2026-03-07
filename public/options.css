@@ -129,10 +129,6 @@ h2 {
   resize: vertical;
 }
 
-.field[hidden] {
-  display: none;
-}
-
 .field code,
 .privacy code {
   font-family: "IBM Plex Mono", "SFMono-Regular", monospace;

@@ -4,7 +4,6 @@ export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   baseUrl: "https://api.together.xyz/v1",
   apiKey: "",
-  apiKeySource: "saved",
   model: "openai/gpt-oss-20b",
   checkCurrentParagraphOnly: false,
   debounceMs: 900,

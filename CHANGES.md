@@ -2,6 +2,12 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- Removed the build-time env API key mode and kept saved Thunderbird storage as the only supported key path
+
 ## [0.2.0] - 2026-03-07
 
 ### Added

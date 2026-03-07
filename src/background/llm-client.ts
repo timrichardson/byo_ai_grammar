@@ -1,5 +1,4 @@
 import { buildPrompt, normalizeAllowlistEntries } from "../shared/prompt";
-import { BUILD_TIME_API_KEY, BUILD_TIME_API_KEY_NAME } from "../shared/build-env";
 import { normalizeIssues } from "../shared/validation";
 import type { CheckRequest, CheckResponse, ConnectionTestResult, Settings } from "../shared/types";
 
@@ -42,19 +41,9 @@ function resolveEndpoint(baseUrl: string): string {
 }
 
 function resolveApiKey(settings: Settings): string {
-  if (settings.apiKeySource === "env") {
-    const envKey = BUILD_TIME_API_KEY.trim();
-    if (!envKey) {
-      throw new Error(
-        `Build-time env key missing. Set ${BUILD_TIME_API_KEY_NAME} before running npm run build, then reload the add-on.`
-      );
-    }
-    return envKey;
-  }
-
   const savedKey = settings.apiKey.trim();
   if (!savedKey) {
-    throw new Error("Add an API key in settings, or switch to the build-time env key option.");
+    throw new Error("Add an API key in settings.");
   }
   return savedKey;
 }
