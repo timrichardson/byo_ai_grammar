@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mozilla BYO AI Grammar Settings</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <p class="eyebrow">Mozilla BYO AI Grammar</p>
+        <h1>Configure your language service</h1>
+        <p class="lede">Text near your cursor is sent to the language service you configure here. Use a Together.ai OpenAI-compatible endpoint or any compatible server you trust.</p>
+      </header>
+
+      <form id="settings-form" class="panel">
+        <section class="section">
+          <h2>Basics</h2>
+          <label class="toggle">
+            <input type="checkbox" id="enabled">
+            <span>
+              <strong>Enable grammar suggestions</strong>
+              <small>Show grammar suggestions while you compose and leave spelling to Thunderbird.</small>
+            </span>
+          </label>
+
+          <label class="toggle">
+            <input type="checkbox" id="checkCurrentParagraphOnly">
+            <span>
+              <strong>Check only the current paragraph</strong>
+              <small>Turn this on to limit checks to the paragraph you are editing.</small>
+            </span>
+          </label>
+
+          <label class="field">
+            <span>Check after you stop typing</span>
+            <select id="debounceMs">
+              <option value="500">0.5 seconds</option>
+              <option value="900">0.9 seconds</option>
+              <option value="1500">1.5 seconds</option>
+              <option value="2000">2 seconds</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Approved grammar exceptions</span>
+            <textarea id="grammarAllowlist" rows="5" placeholder="One approved phrase per line&#10;OpenCode&#10;Thunderbird Daily"></textarea>
+            <small>Use this like a lightweight custom dictionary for grammar. Matching flagged text is ignored.</small>
+            <p id="allowlist-count" class="hint">0/50 approved phrases</p>
+          </label>
+        </section>
+
+        <details class="panel advanced">
+          <summary>Advanced connection settings</summary>
+          <div class="advanced-grid">
+            <label class="field">
+              <span>Server URL</span>
+              <input type="url" id="baseUrl" placeholder="https://api.together.xyz/v1">
+            </label>
+
+            <label class="field">
+              <span>Model</span>
+              <input type="text" id="model" placeholder="openai/gpt-oss-20b">
+            </label>
+
+            <label class="field full-width">
+              <span>API key</span>
+              <input type="password" id="apiKey" placeholder="Paste your API key">
+            </label>
+
+            <label class="field full-width">
+              <span>Custom prompt</span>
+              <textarea id="customPrompt" rows="6" maxlength="600" placeholder="Optional. Add simple instructions such as: Be extra cautious with business email grammar. Prefer concise corrections."></textarea>
+              <small>Optional. The extension trims this to fit a safe prompt budget.</small>
+              <p id="prompt-count" class="hint">0/600 characters</p>
+            </label>
+          </div>
+        </details>
+
+        <section class="section privacy">
+          <h2>Privacy</h2>
+          <p>Only text near your cursor is sent for analysis. The extension does not use analytics or telemetry.</p>
+        </section>
+
+        <footer class="actions">
+          <button type="button" id="test-connection" class="secondary">Test connection</button>
+          <button type="submit" class="primary">Save settings</button>
+        </footer>
+
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </form>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
