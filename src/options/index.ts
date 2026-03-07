@@ -15,6 +15,9 @@ const promptEditor = document.querySelector<HTMLTextAreaElement>("#customPrompt"
 const promptCount = document.querySelector<HTMLParagraphElement>("#prompt-count");
 const allowlistEditor = document.querySelector<HTMLTextAreaElement>("#grammarAllowlist");
 const allowlistCount = document.querySelector<HTMLParagraphElement>("#allowlist-count");
+const apiKeySourceSelect = document.querySelector<HTMLSelectElement>("#apiKeySource");
+const apiKeyField = document.querySelector<HTMLElement>("#apiKey")?.closest("label");
+const envKeyField = document.querySelector<HTMLElement>("#envKeyField");
 
 function setStatus(message: string, state: "idle" | "success" | "error" = "idle") {
   if (!status) {
@@ -46,9 +49,20 @@ function updateAllowlistCount() {
   allowlistCount.textContent = `${entries.length}/${MAX_ALLOWLIST_ENTRIES} approved phrases`;
 }
 
+function syncApiKeyFields() {
+  const source = apiKeySourceSelect?.value ?? DEFAULT_SETTINGS.apiKeySource;
+  if (apiKeyField) {
+    apiKeyField.hidden = source !== "saved";
+  }
+  if (envKeyField) {
+    envKeyField.hidden = source !== "env";
+  }
+}
+
 function readForm(): Settings {
   return {
     enabled: (document.querySelector<HTMLInputElement>("#enabled")?.checked ?? DEFAULT_SETTINGS.enabled),
+    apiKeySource: (apiKeySourceSelect?.value === "env" ? "env" : "saved"),
     checkCurrentParagraphOnly: document.querySelector<HTMLInputElement>("#checkCurrentParagraphOnly")?.checked ?? DEFAULT_SETTINGS.checkCurrentParagraphOnly,
     debounceMs: Number(document.querySelector<HTMLSelectElement>("#debounceMs")?.value ?? DEFAULT_SETTINGS.debounceMs),
     baseUrl: document.querySelector<HTMLInputElement>("#baseUrl")?.value.trim() ?? DEFAULT_SETTINGS.baseUrl,
@@ -64,6 +78,7 @@ function applySettings(settings: Settings) {
   const enabled = document.querySelector<HTMLInputElement>("#enabled");
   const paragraphOnly = document.querySelector<HTMLInputElement>("#checkCurrentParagraphOnly");
   const debounce = document.querySelector<HTMLSelectElement>("#debounceMs");
+  const apiKeySource = document.querySelector<HTMLSelectElement>("#apiKeySource");
   const baseUrl = document.querySelector<HTMLInputElement>("#baseUrl");
   const apiKey = document.querySelector<HTMLInputElement>("#apiKey");
   const model = document.querySelector<HTMLInputElement>("#model");
@@ -73,6 +88,7 @@ function applySettings(settings: Settings) {
   if (enabled) enabled.checked = merged.enabled;
   if (paragraphOnly) paragraphOnly.checked = merged.checkCurrentParagraphOnly;
   if (debounce) debounce.value = String(merged.debounceMs);
+  if (apiKeySource) apiKeySource.value = merged.apiKeySource;
   if (baseUrl) baseUrl.value = merged.baseUrl;
   if (apiKey) apiKey.value = merged.apiKey;
   if (model) model.value = merged.model;
@@ -80,6 +96,7 @@ function applySettings(settings: Settings) {
   if (grammarAllowlist) grammarAllowlist.value = merged.grammarAllowlist.join("\n");
   updatePromptCount();
   updateAllowlistCount();
+  syncApiKeyFields();
 }
 
 async function restore() {
@@ -103,6 +120,7 @@ testButton?.addEventListener("click", async () => {
 
 promptEditor?.addEventListener("input", updatePromptCount);
 allowlistEditor?.addEventListener("input", updateAllowlistCount);
+apiKeySourceSelect?.addEventListener("change", syncApiKeyFields);
 
 restore().catch((error) => {
   console.error(error);

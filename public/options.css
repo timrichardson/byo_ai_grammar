@@ -129,6 +129,16 @@ h2 {
   resize: vertical;
 }
 
+.field[hidden] {
+  display: none;
+}
+
+.field code,
+.privacy code {
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  font-size: 0.95em;
+}
+
 .hint {
   margin: 8px 0 0;
 }

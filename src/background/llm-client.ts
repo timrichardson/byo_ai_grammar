@@ -1,4 +1,5 @@
 import { buildPrompt, normalizeAllowlistEntries } from "../shared/prompt";
+import { BUILD_TIME_API_KEY, BUILD_TIME_API_KEY_NAME } from "../shared/build-env";
 import { normalizeIssues } from "../shared/validation";
 import type { CheckRequest, CheckResponse, ConnectionTestResult, Settings } from "../shared/types";
 
@@ -40,13 +41,30 @@ function resolveEndpoint(baseUrl: string): string {
   return `${trimmed}/chat/completions`;
 }
 
-async function callService(activeText: string, contextText: string, settings: Settings, signal?: AbortSignal) {
-  if (!settings.apiKey.trim()) {
-    throw new Error("Add an API key in settings.");
+function resolveApiKey(settings: Settings): string {
+  if (settings.apiKeySource === "env") {
+    const envKey = BUILD_TIME_API_KEY.trim();
+    if (!envKey) {
+      throw new Error(
+        `Build-time env key missing. Set ${BUILD_TIME_API_KEY_NAME} before running npm run build, then reload the add-on.`
+      );
+    }
+    return envKey;
   }
+
+  const savedKey = settings.apiKey.trim();
+  if (!savedKey) {
+    throw new Error("Add an API key in settings, or switch to the build-time env key option.");
+  }
+  return savedKey;
+}
+
+async function callService(activeText: string, contextText: string, settings: Settings, signal?: AbortSignal) {
   if (!settings.model.trim()) {
     throw new Error("Add a model in settings.");
   }
+
+  const apiKey = resolveApiKey(settings);
 
   const { system, user } = buildPrompt({
     activeText,
@@ -58,7 +76,7 @@ async function callService(activeText: string, contextText: string, settings: Se
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${settings.apiKey.trim()}`
+      Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: settings.model.trim(),

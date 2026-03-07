@@ -11,6 +11,7 @@ This project is in early development. The current working version targets Thunde
 - Grammar-only suggestions layered on top of Thunderbird compose windows
 - Nearby-paragraph context with an optional current-paragraph-only mode
 - User-configured OpenAI-compatible endpoint, API key, and model
+- Optional build-time env key support via `MOZILLA_BYO_AI_GRAMMAR_API_KEY`
 - Custom prompt support with a bounded prompt budget
 - Grammar allowlist for approved phrases and project-specific exceptions
 - Per-message pause control
@@ -58,11 +59,24 @@ To distribute it later, package the contents of `dist/` into an `.xpi` archive w
 The options page lets you configure:
 
 - OpenAI-compatible server URL
-- API key
+- saved API key or build-time env key mode
 - model string
 - grammar checking scope
 - custom grammar prompt
 - grammar allowlist entries
+
+## API key storage
+
+The add-on supports two API key modes:
+
+- `Save API key in Thunderbird`
+  - stores the key in `browser.storage.local` inside the Thunderbird profile
+  - convenient, but not protected by an OS keychain or hardware-backed secret store
+  - anyone with access to the local profile data may be able to recover it
+- `Use build-time env key`
+  - reads `MOZILLA_BYO_AI_GRAMMAR_API_KEY` only when you run `npm run build`
+  - the resolved value is bundled into the built extension for local use
+  - this is a development convenience, not stronger secret storage
 
 ## Versioning
 

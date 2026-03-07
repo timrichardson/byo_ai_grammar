@@ -6,6 +6,7 @@ const watch = process.argv.includes("--watch");
 const root = process.cwd();
 const dist = path.join(root, "dist");
 const publicDir = path.join(root, "public");
+const buildTimeApiKey = process.env.MOZILLA_BYO_AI_GRAMMAR_API_KEY ?? "";
 
 function prepareDist() {
   rmSync(dist, { recursive: true, force: true });
@@ -17,7 +18,10 @@ const shared = {
   bundle: true,
   sourcemap: true,
   target: "firefox128",
-  logLevel: "info"
+  logLevel: "info",
+  define: {
+    __MOZILLA_BYO_AI_GRAMMAR_API_KEY__: JSON.stringify(buildTimeApiKey)
+  }
 };
 
 const builds = [
