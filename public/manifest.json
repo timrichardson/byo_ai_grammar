@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "version": "0.3.0",
-  "name": "Mozilla BYO AI Grammar",
+  "name": "BYO AI Grammar",
   "description": "Inline grammar suggestions in Thunderbird compose windows using OpenAI-compatible language models.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "mozilla_byo_ai_grammar@local",
+      "id": "byo_ai_grammar@timrichardson.dev",
       "strict_min_version": "128.0"
     }
   },
@@ -28,7 +28,7 @@
     "open_in_tab": true
   },
   "compose_action": {
-    "default_title": "Toggle Mozilla BYO AI Grammar for this message",
+    "default_title": "Toggle BYO AI Grammar for this message",
     "default_icon": "icons/icon-32.svg"
   },
   "icons": {

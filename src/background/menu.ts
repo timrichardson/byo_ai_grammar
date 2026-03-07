@@ -1,12 +1,12 @@
 const MENU_DEFINITIONS = [
   {
     id: "writing-suggestions-open-settings",
-    title: "Mozilla BYO AI Grammar Settings",
+    title: "BYO AI Grammar Settings",
     contexts: ["compose_body", "editable", "selection"]
   },
   {
     id: "writing-suggestions-pause-message",
-    title: "Pause Mozilla BYO AI Grammar for This Message",
+    title: "Pause BYO AI Grammar for This Message",
     contexts: ["compose_body", "editable", "selection"]
   }
 ];

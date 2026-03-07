@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to `mozilla_byo_ai_grammar`.
+Thanks for contributing to `byo_ai_grammar`.
 
 ## Development Setup
 
@@ -36,7 +36,7 @@ Thanks for contributing to `mozilla_byo_ai_grammar`.
 ### UI And UX
 
 - Keep UI copy plain, direct, and beginner-friendly.
-- Use existing naming consistently: `Mozilla BYO AI Grammar`, `grammar suggestions`, `allowlist`.
+- Use existing naming consistently: `BYO AI Grammar`, `grammar suggestions`, `allowlist`.
 - Do not introduce heavy UI frameworks for small settings or popup changes.
 - Make changes work on desktop and narrow layouts.
 

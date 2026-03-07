@@ -46,7 +46,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mozilla-byo-ai-grammar-xpi
+          name: byo-ai-grammar-xpi
           path: ${{ steps.package.outputs.xpi_path }}
 
       - name: Attach XPI to GitHub Release

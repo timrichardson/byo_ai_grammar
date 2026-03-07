@@ -1,6 +1,6 @@
-# mozilla_byo_ai_grammar
+# BYO AI Grammar
 
-`mozilla_byo_ai_grammar` is a Mozilla Thunderbird add-on that provides inline grammar suggestions while composing email. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends nearby compose text to a user-configured OpenAI-compatible endpoint such as Together.ai.
+`BYO AI Grammar` is a Thunderbird add-on that provides inline grammar suggestions while composing email. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends nearby compose text to a user-configured OpenAI-compatible endpoint such as Together.ai.
 
 ## Status
 
@@ -34,15 +34,15 @@ npm --version
 Linux and macOS:
 
 ```bash
-git clone https://github.com/timrichardson/mozilla_byo_ai_grammar.git
-cd mozilla_byo_ai_grammar
+git clone https://github.com/timrichardson/byo_ai_grammar.git
+cd byo_ai_grammar
 ```
 
 Windows PowerShell:
 
 ```powershell
-git clone https://github.com/timrichardson/mozilla_byo_ai_grammar.git
-Set-Location mozilla_byo_ai_grammar
+git clone https://github.com/timrichardson/byo_ai_grammar.git
+Set-Location byo_ai_grammar
 ```
 
 ## Install Dependencies
@@ -76,7 +76,7 @@ npm run package
 That produces a file like:
 
 ```text
-mozilla_byo_ai_grammar-0.3.0.xpi
+byo_ai_grammar-0.3.0.xpi
 ```
 
 ## Install In Thunderbird

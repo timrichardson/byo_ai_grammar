@@ -21,14 +21,14 @@ browser.composeAction.onClicked.addListener(async (tab: { id?: number }) => {
     pausedTabs.delete(tab.id);
     await browser.composeAction.setTitle({
       tabId: tab.id,
-      title: "Pause Mozilla BYO AI Grammar for this message"
+      title: "Pause BYO AI Grammar for this message"
     });
     await browser.composeAction.setBadgeText({ tabId: tab.id, text: "" });
   } else {
     pausedTabs.add(tab.id);
     await browser.composeAction.setTitle({
       tabId: tab.id,
-      title: "Resume Mozilla BYO AI Grammar for this message"
+      title: "Resume BYO AI Grammar for this message"
     });
     await browser.composeAction.setBadgeText({ tabId: tab.id, text: "PAUSE" });
     await browser.composeAction.setBadgeBackgroundColor({ tabId: tab.id, color: "#a61b1b" });

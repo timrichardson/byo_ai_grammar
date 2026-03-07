@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This file gives coding agents and automation tools project-specific guidance for `mozilla_byo_ai_grammar`.
+This file gives coding agents and automation tools project-specific guidance for `byo_ai_grammar`.
 
 ## Project Summary
 
-`mozilla_byo_ai_grammar` is a Mozilla Thunderbird Manifest V3 add-on that adds inline grammar suggestions while composing email.
+`byo_ai_grammar` is a Thunderbird Manifest V3 add-on that adds inline grammar suggestions while composing email.
 
 Important product boundaries:
 
@@ -113,7 +113,7 @@ Do not remove or soften the security warnings in the UI or docs without good rea
 ### UI
 
 - Keep copy plain, direct, and beginner-friendly
-- Use the established naming consistently: `Mozilla BYO AI Grammar`, `grammar suggestions`, `allowlist`
+- Use the established naming consistently: `BYO AI Grammar`, `grammar suggestions`, `allowlist`
 - Do not introduce a frontend framework for small UI changes
 - Keep options and popup UI usable on narrow windows
 
