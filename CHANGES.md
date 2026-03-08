@@ -2,6 +2,12 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.4.30] - 2026-03-08
+
+### Changed
+
+- Updated the grammar prompt to request `needs_change` alongside `corrected_text`, then used that signal to keep acceptable text unchanged while preserving the improved homophone behavior on `google/gemma-3n-E4B-it`
+
 ## [0.4.29] - 2026-03-08
 
 ### Changed

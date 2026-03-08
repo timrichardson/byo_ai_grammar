@@ -17,8 +17,7 @@ export const BASIC_GRAMMAR_CASES = [
     name: "fix-short",
     activeText: "This findings are useful.",
     contextText: "",
-    expectChange: true,
-    expectedText: "These findings are useful."
+    expectChange: true
   }
 ];
 

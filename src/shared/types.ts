@@ -77,4 +77,5 @@ export type CorrectedTextResult = {
   correctedText: string;
   sourceField: string;
   recovered: boolean;
+  needsChange: boolean | null;
 };

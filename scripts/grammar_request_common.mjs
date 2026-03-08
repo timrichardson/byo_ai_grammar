@@ -5,16 +5,18 @@ export const DEFAULT_TIMEOUT_MS = 60000;
 const BASE_SYSTEM_PROMPT = [
   "You are a grammar checker for email composition.",
   "Return exactly one JSON object.",
-  "The JSON object must contain exactly one key: corrected_text.",
+  "The JSON object must contain exactly two keys: needs_change and corrected_text.",
+  "needs_change must be a boolean.",
+  "corrected_text must be the full corrected version of active_text.",
   "Do not return markdown, code fences, commentary, or extra keys.",
-  "Target contemporary standard English with light formality.",
-  "Keep suggestions conservative and practical for everyday professional email.",
-  "Ignore spelling mistakes. Thunderbird handles spelling separately.",
-  "Correct clearly wrong function-word choices and homophone confusions only when the sentence is grammatically wrong in context, such as to/too/two, their/there/they're, your/you're, and its/it's.",
+  "Ignore spelling mistakes, apart from homophone confusions and function-word confusions that cause grammatical errors.",
+  "Correct clearly wrong function-word choices and homophone confusions such as to/too/two, their/there/they're, your/you're, and its/it's.",
+  "If active_text is already acceptable, set needs_change to false and return it unchanged character-for-character.",
+  "If active_text needs a grammar correction, set needs_change to true and prefer the smallest possible local correction.",
+  "Do not rewrite acceptable wording, cadence, punctuation, or phrasing just to make it sound better.",
+  "Keep original words whenever possible; fix agreement or the wrong function word before replacing content words.",
   "Do not rewrite tone or style beyond what is needed for correctness.",
   "Preserve names, product names, quoted text, and meaning.",
-  "corrected_text must be the full corrected version of active_text.",
-  "If active_text is already acceptable, return active_text unchanged.",
   "Only make small grammar corrections that can be applied locally."
 ];
 
@@ -127,6 +129,42 @@ function getStringField(record) {
       return {
         field: `${field}.${nestedStringField.field}`,
         value: nestedStringField.value,
+        recovered: true
+      };
+    }
+  }
+
+  return null;
+}
+
+function getNeedsChangeField(record) {
+  if (typeof record.needs_change === "boolean") {
+    return {
+      field: "needs_change",
+      value: record.needs_change,
+      recovered: false
+    };
+  }
+
+  if (typeof record.needsChange === "boolean") {
+    return {
+      field: "needsChange",
+      value: record.needsChange,
+      recovered: true
+    };
+  }
+
+  for (const field of NESTED_OBJECT_KEYS) {
+    const nested = record[field];
+    if (!isRecord(nested)) {
+      continue;
+    }
+
+    const nestedNeedsChangeField = getNeedsChangeField(nested);
+    if (nestedNeedsChangeField) {
+      return {
+        field: `${field}.${nestedNeedsChangeField.field}`,
+        value: nestedNeedsChangeField.value,
         recovered: true
       };
     }
@@ -370,7 +408,9 @@ export function normalizeCorrectedTextResponse(raw, sourceText) {
     throw new Error("The language service did not return corrected_text.");
   }
 
-  const correctedText = correctedTextField.value;
+  const needsChangeField = getNeedsChangeField(raw);
+  const correctedText = needsChangeField?.value === false ? sourceText : correctedTextField.value;
+
   if (correctedText.length === 0 && sourceText.length > 0) {
     throw new Error("The language service returned an empty corrected_text.");
   }
@@ -388,7 +428,8 @@ export function normalizeCorrectedTextResponse(raw, sourceText) {
   return {
     correctedText,
     sourceField: correctedTextField.field,
-    recovered: correctedTextField.recovered
+    recovered: correctedTextField.recovered || Boolean(needsChangeField?.recovered),
+    needsChange: needsChangeField?.value ?? null
   };
 }
 
@@ -403,7 +444,8 @@ export function analyzeGrammarResponse({ responseText, activeText }) {
       parsedContent: content,
       correctedText: normalized.correctedText,
       sourceField: normalized.sourceField,
-      recovered: normalized.recovered
+      recovered: normalized.recovered,
+      needsChange: normalized.needsChange
     };
   }
 
@@ -426,6 +468,7 @@ export function analyzeGrammarResponse({ responseText, activeText }) {
     parsedContent,
     correctedText: normalized.correctedText,
     sourceField: normalized.sourceField,
-    recovered: normalized.recovered
+    recovered: normalized.recovered,
+    needsChange: normalized.needsChange
   };
 }

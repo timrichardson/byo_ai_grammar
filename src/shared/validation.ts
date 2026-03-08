@@ -68,6 +68,42 @@ function getStringField(record: Record<string, unknown>): { field: string; value
   return null;
 }
 
+function getNeedsChangeField(record: Record<string, unknown>): { field: string; value: boolean; recovered: boolean } | null {
+  if (typeof record.needs_change === "boolean") {
+    return {
+      field: "needs_change",
+      value: record.needs_change,
+      recovered: false
+    };
+  }
+
+  if (typeof record.needsChange === "boolean") {
+    return {
+      field: "needsChange",
+      value: record.needsChange,
+      recovered: true
+    };
+  }
+
+  for (const field of NESTED_OBJECT_KEYS) {
+    const nested = record[field];
+    if (!isRecord(nested)) {
+      continue;
+    }
+
+    const nestedNeedsChangeField = getNeedsChangeField(nested);
+    if (nestedNeedsChangeField) {
+      return {
+        field: `${field}.${nestedNeedsChangeField.field}`,
+        value: nestedNeedsChangeField.value,
+        recovered: true
+      };
+    }
+  }
+
+  return null;
+}
+
 function normalizeCorrectedTextValue(correctedText: string, sourceText: string): string {
   if (correctedText.length === 0 && sourceText.length > 0) {
     throw new Error("The language service returned an empty corrected_text.");
@@ -256,9 +292,15 @@ export function normalizeCorrectedTextResponse(raw: unknown, sourceText: string)
     throw new Error("The language service did not return corrected_text.");
   }
 
+  const needsChangeField = getNeedsChangeField(raw);
+  const correctedText = needsChangeField?.value === false
+    ? sourceText
+    : normalizeCorrectedTextValue(correctedTextField.value, sourceText);
+
   return {
-    correctedText: normalizeCorrectedTextValue(correctedTextField.value, sourceText),
+    correctedText,
     sourceField: correctedTextField.field,
-    recovered: correctedTextField.recovered
+    recovered: correctedTextField.recovered || Boolean(needsChangeField?.recovered),
+    needsChange: needsChangeField?.value ?? null
   };
 }

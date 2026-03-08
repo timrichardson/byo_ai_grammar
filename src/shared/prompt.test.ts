@@ -11,8 +11,9 @@ describe("buildPrompt", () => {
     });
 
     expect(prompt.system).toContain("corrected_text");
+    expect(prompt.system).toContain("needs_change");
     expect(prompt.system).not.toContain("zero-based offsets");
-    expect(prompt.system).toContain("exactly one key");
+    expect(prompt.system).toContain("exactly two keys");
     expect(prompt.user).toContain("active_text");
     expect(prompt.user).not.toContain("output_schema");
   });

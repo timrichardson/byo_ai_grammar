@@ -11,6 +11,7 @@ type ConnectionTestCase = {
   activeText: string;
   contextText: string;
   expectChange: boolean;
+  expectedText?: string;
 };
 
 const CONNECTION_TEST_CASES: ConnectionTestCase[] = [
@@ -18,19 +19,22 @@ const CONNECTION_TEST_CASES: ConnectionTestCase[] = [
     name: "fix-simple",
     activeText: "These updates is ready to send.",
     contextText: "",
-    expectChange: true
+    expectChange: true,
+    expectedText: "These updates are ready to send."
   },
   {
     name: "keep-good",
     activeText: "These updates are ready to send.",
     contextText: "",
-    expectChange: false
+    expectChange: false,
+    expectedText: "These updates are ready to send."
   },
   {
     name: "fix-short",
     activeText: "This findings are useful.",
     contextText: "",
-    expectChange: true
+    expectChange: true,
+    expectedText: "These findings are useful."
   }
 ];
 
@@ -320,7 +324,9 @@ export async function testConnection(settings: Settings): Promise<ConnectionTest
     for (const testCase of CONNECTION_TEST_CASES) {
       const result = await callService(testCase.activeText, testCase.contextText, settings);
       const changed = result.correctedText !== testCase.activeText;
-      const ok = changed === testCase.expectChange;
+      const ok = typeof testCase.expectedText === "string"
+        ? result.correctedText === testCase.expectedText
+        : changed === testCase.expectChange;
       caseResults.push({
         name: testCase.name,
         ok,
@@ -328,9 +334,11 @@ export async function testConnection(settings: Settings): Promise<ConnectionTest
         expectation: testCase.expectChange ? "should change" : "should stay unchanged",
         detail: ok
           ? result.correctedText
-          : testCase.expectChange
-            ? "did not correct the sample sentence"
-            : "changed text that should stay unchanged"
+          : typeof testCase.expectedText === "string"
+            ? `returned \"${result.correctedText}\"; expected \"${testCase.expectedText}\"`
+            : testCase.expectChange
+              ? `did not correct the sample sentence (returned \"${result.correctedText}\")`
+              : `changed text that should stay unchanged (returned \"${result.correctedText}\")`
       });
     }
 
