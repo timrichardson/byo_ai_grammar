@@ -1,5 +1,5 @@
-import { getSelectedTextSnapshot, type SelectedTextSnapshot } from "./block-extractor";
-import { runCheck, runSelectedTextCheck } from "./editor";
+import { getSelectedBlocksSnapshot, type SelectedBlocksSnapshot } from "./block-extractor";
+import { runCheck, runSelectedBlocksCheck, type CheckStatus } from "./editor";
 import { composeDebugLog } from "./debug-log";
 import { setStatusIndicator } from "./status-indicator";
 import { getBuildFingerprint } from "../shared/build-info";
@@ -14,7 +14,7 @@ let latestRequestId = 0;
 let bodyObserver: MutationObserver | null = null;
 let bodySnapshotPoller: number | null = null;
 let lastObservedBodyText = "";
-let latestSelectionSnapshot: SelectedTextSnapshot | null = null;
+let latestSelectionSnapshot: SelectedBlocksSnapshot | null = null;
 
 function getLatestRequestId() {
   return latestRequestId;
@@ -25,7 +25,7 @@ async function syncSelectionActionState() {
     return;
   }
 
-  latestSelectionSnapshot = getSelectedTextSnapshot();
+  latestSelectionSnapshot = getSelectedBlocksSnapshot();
   await browser.runtime.sendMessage({
     type: "tab:selection",
     tabId,
@@ -150,8 +150,7 @@ async function bootstrap() {
 
   composeDebugLog(settings.debugMode, "compose", "Compose script bootstrapped", {
     tabId,
-    debounceMs: settings.debounceMs,
-    paragraphOnly: settings.checkCurrentParagraphOnly
+    debounceMs: settings.debounceMs
   });
 
   if (settings.enabled) {
@@ -163,7 +162,7 @@ async function bootstrap() {
   observeComposeBodyChanges();
 
   browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
-    if (message.type !== "compose:runSelectedTextCheck") {
+    if (message.type !== "compose:runSelectedBlocksCheck") {
       return undefined;
     }
 
@@ -171,7 +170,7 @@ async function bootstrap() {
       return Promise.resolve({ handled: false });
     }
 
-    const selectionSnapshot = getSelectedTextSnapshot() ?? latestSelectionSnapshot;
+    const selectionSnapshot = getSelectedBlocksSnapshot() ?? latestSelectionSnapshot;
     if (!selectionSnapshot) {
       void syncSelectionActionState();
       return Promise.resolve({ handled: false });
@@ -187,11 +186,18 @@ async function bootstrap() {
       timer = null;
     }
 
-    const requestId = ++latestRequestId;
-    setStatusIndicator("Checking the selected text...", "checking");
-    void runSelectedTextCheck(settings, tabId, requestId, getLatestRequestId, selectionSnapshot, () => scheduleCheck(true))
-      .then((result) => {
-        if (!result.stale && requestId === latestRequestId) {
+    setStatusIndicator("Checking selected paragraphs...", "checking");
+    void runSelectedBlocksCheck(
+      settings,
+      tabId,
+      selectionSnapshot,
+      () => ++latestRequestId,
+      getLatestRequestId,
+      () => scheduleCheck(true),
+      (message: string) => setStatusIndicator(message, "checking")
+    )
+      .then((result: CheckStatus) => {
+        if (!result.stale) {
           setStatusIndicator(result.message, result.state);
         }
       })

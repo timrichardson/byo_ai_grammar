@@ -27,14 +27,6 @@
           </label>
 
           <label class="toggle">
-            <input type="checkbox" id="checkCurrentParagraphOnly">
-            <span>
-              <strong>Check only the current paragraph</strong>
-              <small>Turn this on to limit checks to the paragraph you are editing.</small>
-            </span>
-          </label>
-
-          <label class="toggle">
             <input type="checkbox" id="debugMode">
             <span>
               <strong>Enable debug logging</strong>
@@ -92,7 +84,7 @@
 
         <section class="section privacy">
           <h2>Privacy</h2>
-          <p>Only text near your cursor is sent for analysis. The extension does not use analytics or telemetry.</p>
+          <p>Only the paragraph under your cursor is sent while typing, unless you manually select paragraphs and click <code>Check</code>. The extension does not use analytics or telemetry.</p>
           <p class="hint">If debug logging is enabled, inspect the Browser Console or the add-on entry in Debug Add-ons to review request ids, stale-response drops, and service errors.</p>
         </section>
 

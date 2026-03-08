@@ -1,10 +1,9 @@
 import { getTextForRangeMapping } from "./range-mapper";
-import { buildSelectedTextContext } from "../shared/request-budget";
 
 /**
  * Compose-side block discovery helpers for Thunderbird's editable message body.
  *
- * Thunderbird compose markup varies across reply modes, signatures, and quoted content, so these
+ * Thunderbird compose markup varies across reply modes and signatures, so these
  * helpers work from visible-text offsets and leaf blocks instead of assuming stable wrapper nodes.
  */
 
@@ -15,36 +14,26 @@ export type BlockInfo = {
   text: string;
 };
 
-/** Snapshot of the current signature and quoted-reply exclusion state for debug logging. */
+/** Snapshot of the current signature exclusion state for debug logging. */
 export type SignatureDebugState = {
   signatureMarkerFound: boolean;
   signatureMarkerOffset: number | null;
-  quotedReplyMarkerFound: boolean;
-  quotedReplyMarkerOffset: number | null;
   exclusionBoundaryOffset: number | null;
   selectionElementTag: string | null;
   selectionBlockText: string | null;
   selectionOffset: number | null;
   selectionInsideSignature: boolean;
-  selectionInsideQuotedReply: boolean;
   bodyText: string;
   bodyHtml: string;
 };
 
-/** Snapshot of the current manual selection used for compose-action checks. */
-export type SelectedTextSnapshot = {
-  text: string;
-  range: Range;
-  anchorRect: DOMRect;
-  startOffset: number;
-  endOffset: number;
-  contextText: string;
+/** Snapshot of the selected compose blocks queued for a manual compose-action check. */
+export type SelectedBlocksSnapshot = {
+  blocks: BlockInfo[];
 };
 
 const BLOCK_SELECTOR = "p, div, li, blockquote, pre";
-const QUOTED_SELECTOR = "blockquote[type='cite'], .moz-cite-prefix, .moz-forward-container, .moz-email-headers-table";
 const SIGNATURE_SEPARATOR_PATTERN = /(^|\n)--\s*\n/m;
-const QUOTED_REPLY_HEADER_PATTERN = /(^|\n)On [^\n]+ wrote:\n/m;
 let blockIdCounter = 0;
 
 function createBlockId(): string {
@@ -69,27 +58,9 @@ function getSignatureSeparatorOffset(text: string): number | null {
   return match.index + match[1].length;
 }
 
-/** Returns the visible-text offset where a reply header starts, if Thunderbird rendered one. */
-export function getQuotedReplyOffset(text: string): number | null {
-  const match = QUOTED_REPLY_HEADER_PATTERN.exec(text);
-  if (!match || typeof match.index !== "number") {
-    return null;
-  }
-
-  return match.index + match[1].length;
-}
-
-/** Returns the earliest visible-text cutoff for signature or quoted reply content. */
+/** Returns the visible-text cutoff for signature content. */
 export function getExclusionBoundaryOffset(text: string): number | null {
-  const offsets = [getSignatureSeparatorOffset(text), getQuotedReplyOffset(text)].filter(
-    (offset): offset is number => offset !== null
-  );
-
-  return offsets.length > 0 ? Math.min(...offsets) : null;
-}
-
-function isQuotedElement(element: HTMLElement): boolean {
-  return Boolean(element.closest(QUOTED_SELECTOR));
+  return getSignatureSeparatorOffset(text);
 }
 
 function getCandidateBlocks(): HTMLElement[] {
@@ -109,7 +80,7 @@ function getElementVisibleStartOffset(element: HTMLElement): number | null {
     return null;
   }
 
-  // Measure against the full compose body so later signature and quoted-reply offsets line up with
+  // Measure against the full compose body so later signature offsets line up with
   // the same visible-text coordinate system used for selection snapshots.
   const range = document.createRange();
   range.selectNodeContents(document.body);
@@ -127,17 +98,6 @@ function findSelectionElement(): HTMLElement | null {
   return node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
 }
 
-function getRangeVisibleOffset(container: Node, offset: number): number | null {
-  if (!document.body?.contains(container)) {
-    return null;
-  }
-
-  const prefix = document.createRange();
-  prefix.selectNodeContents(document.body);
-  prefix.setEnd(container, offset);
-  return normalizeVisibleText(prefix.toString()).length;
-}
-
 function getSelectionVisibleOffset(): number | null {
   const selection = document.getSelection();
   if (!selection || selection.rangeCount === 0) {
@@ -153,25 +113,13 @@ function getSelectionVisibleOffset(): number | null {
   return normalizeVisibleText(prefix.toString()).length;
 }
 
-function getSelectionVisibleRange(): { range: Range; startOffset: number; endOffset: number } | null {
+function getSelectionRange(): Range | null {
   const selection = document.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
     return null;
   }
 
-  const range = selection.getRangeAt(0).cloneRange();
-  const startOffset = getRangeVisibleOffset(range.startContainer, range.startOffset);
-  const endOffset = getRangeVisibleOffset(range.endContainer, range.endOffset);
-  if (startOffset === null || endOffset === null || endOffset <= startOffset) {
-    return null;
-  }
-
-  return { range, startOffset, endOffset };
-}
-
-function getSelectionAnchorRect(range: Range): DOMRect {
-  const firstRect = range.getClientRects().item(0);
-  return firstRect ?? range.getBoundingClientRect();
+  return selection.getRangeAt(0).cloneRange();
 }
 
 function findSelectionLeafBlock(): HTMLElement | null {
@@ -196,24 +144,9 @@ function isSelectionInsideSignature(): boolean {
   return selectionOffset >= signatureOffset;
 }
 
-function isSelectionInsideQuotedReply(): boolean {
-  const selectionElement = findSelectionElement();
-  if (selectionElement && isQuotedElement(selectionElement)) {
-    return true;
-  }
-
-  const quotedReplyOffset = getQuotedReplyOffset(getBodyVisibleText());
-  const selectionOffset = getSelectionVisibleOffset();
-  if (quotedReplyOffset === null || selectionOffset === null) {
-    return false;
-  }
-
-  return selectionOffset >= quotedReplyOffset;
-}
-
 function getBlocksBeforeExclusionBoundary(): HTMLElement[] {
   const exclusionBoundaryOffset = getExclusionBoundaryOffset(getBodyVisibleText());
-  const leafBlocks = getLeafBlocks().filter((element) => !isQuotedElement(element));
+  const leafBlocks = getLeafBlocks();
   if (exclusionBoundaryOffset === null) {
     return leafBlocks;
   }
@@ -225,10 +158,6 @@ function getBlocksBeforeExclusionBoundary(): HTMLElement[] {
 }
 
 function isMeaningfulBlock(element: HTMLElement): boolean {
-  if (isQuotedElement(element)) {
-    return false;
-  }
-
   return Boolean(element.innerText.trim());
 }
 
@@ -239,14 +168,6 @@ export function getSelectionExclusionReason(): string | null {
     return null;
   }
 
-  if (isQuotedElement(element)) {
-    return "Quoted reply text is ignored.";
-  }
-
-  if (isSelectionInsideQuotedReply()) {
-    return "Quoted reply text is ignored.";
-  }
-
   if (isSelectionInsideSignature()) {
     return "Your email signature is ignored.";
   }
@@ -255,49 +176,61 @@ export function getSelectionExclusionReason(): string | null {
 }
 
 /**
- * Returns a bounded selected-text snapshot for the compose action when a manual check is possible.
+ * Returns the visible selected blocks for the compose action when a manual check is possible.
  *
- * Manual selection checks stay out of signatures and quoted replies, and only send short nearby
- * before-and-after context so user-selected passages remain compatible with smaller model windows.
+ * The compose action treats the selection as a queue of intersecting paragraphs so manual checks can
+ * reuse the normal per-paragraph suggestion flow without sending one large combined selection.
  */
-export function getSelectedTextSnapshot(): SelectedTextSnapshot | null {
-  const visibleRange = getSelectionVisibleRange();
-  if (!visibleRange) {
+export function getSelectedBlocksSnapshot(): SelectedBlocksSnapshot | null {
+  const selectionRange = getSelectionRange();
+  if (!selectionRange) {
     return null;
   }
 
-  const selectionElement = findSelectionElement();
-  if (!selectionElement || isQuotedElement(selectionElement) || isSelectionInsideQuotedReply() || isSelectionInsideSignature()) {
-    return null;
-  }
-
-  const text = normalizeVisibleText(visibleRange.range.toString());
-  if (!text.trim()) {
-    return null;
-  }
-
-  const bodyText = getBodyVisibleText();
-  const exclusionBoundaryOffset = getExclusionBoundaryOffset(bodyText);
-  if (exclusionBoundaryOffset !== null && visibleRange.endOffset > exclusionBoundaryOffset) {
+  const blocks = collectBlocks().filter((block) => selectionRange.intersectsNode(block.element));
+  if (blocks.length === 0) {
     return null;
   }
 
   return {
-    text,
-    range: visibleRange.range,
-    anchorRect: getSelectionAnchorRect(visibleRange.range),
-    startOffset: visibleRange.startOffset,
-    endOffset: visibleRange.endOffset,
-    contextText: buildSelectedTextContext(bodyText, visibleRange.startOffset, visibleRange.endOffset)
+    blocks
   };
 }
 
-/** Collects debug-friendly signature and quoted-reply state for compose-side logging. */
+/**
+ * Replaces the current DOM selection with the remaining selected blocks during a manual check batch.
+ *
+ * Shrinking the native selection gives the user progress feedback and returns the compose action to
+ * its normal `On` state once every queued paragraph has been processed.
+ */
+export function setSelectedBlocksRange(blocks: BlockInfo[]) {
+  const selection = document.getSelection();
+  if (!selection) {
+    return;
+  }
+
+  selection.removeAllRanges();
+  if (blocks.length === 0) {
+    return;
+  }
+
+  const firstBlock = blocks.find((block) => document.body.contains(block.element));
+  const lastBlock = [...blocks].reverse().find((block) => document.body.contains(block.element));
+  if (!firstBlock || !lastBlock) {
+    return;
+  }
+
+  const range = document.createRange();
+  range.setStartBefore(firstBlock.element);
+  range.setEndAfter(lastBlock.element);
+  selection.addRange(range);
+}
+
+/** Collects debug-friendly signature state for compose-side logging. */
 export function getSignatureDebugState(): SignatureDebugState {
   const bodyText = getBodyVisibleText();
   const bodyHtml = document.body.innerHTML;
   const signatureOffset = getSignatureSeparatorOffset(bodyText);
-  const quotedReplyOffset = getQuotedReplyOffset(bodyText);
   const selectionElement = findSelectionElement();
   const selectionBlock = findSelectionLeafBlock();
   const selectionOffset = getSelectionVisibleOffset();
@@ -305,20 +238,17 @@ export function getSignatureDebugState(): SignatureDebugState {
   return {
     signatureMarkerFound: signatureOffset !== null,
     signatureMarkerOffset: signatureOffset,
-    quotedReplyMarkerFound: quotedReplyOffset !== null,
-    quotedReplyMarkerOffset: quotedReplyOffset,
     exclusionBoundaryOffset: getExclusionBoundaryOffset(bodyText),
     selectionElementTag: selectionElement?.tagName ?? null,
     selectionBlockText: selectionBlock?.innerText ?? null,
     selectionOffset,
     selectionInsideSignature: isSelectionInsideSignature(),
-    selectionInsideQuotedReply: isSelectionInsideQuotedReply(),
     bodyText,
     bodyHtml
   };
 }
 
-/** Returns visible leaf blocks before any signature or quoted-reply cutoff. */
+/** Returns visible leaf blocks before any signature cutoff. */
 export function collectBlocks(): BlockInfo[] {
   const blocks: BlockInfo[] = [];
 
@@ -351,7 +281,7 @@ export function findActiveBlock(blocks: BlockInfo[]): BlockInfo | null {
     return null;
   }
 
-  if (isQuotedElement(selectionElement) || isSelectionInsideQuotedReply() || isSelectionInsideSignature()) {
+  if (isSelectionInsideSignature()) {
     return null;
   }
 
@@ -366,25 +296,8 @@ export function findActiveBlock(blocks: BlockInfo[]): BlockInfo | null {
 /**
  * Builds the bounded checking scope around the active block.
  *
- * Paragraph-only mode keeps requests limited to the current block. Otherwise the immediately
- * adjacent visible blocks are included as nearby context for the prompt.
+ * Automatic compose checks are current-paragraph only, so this always returns the active block.
  */
-export function buildScope(blocks: BlockInfo[], activeBlock: BlockInfo, paragraphOnly: boolean) {
-  const activeIndex = blocks.findIndex((block) => block.id === activeBlock.id);
-  if (activeIndex === -1) {
-    return [activeBlock];
-  }
-
-  if (paragraphOnly) {
-    return [activeBlock];
-  }
-
-  const scoped = [blocks[activeIndex]];
-  if (blocks[activeIndex - 1]) {
-    scoped.unshift(blocks[activeIndex - 1]);
-  }
-  if (blocks[activeIndex + 1]) {
-    scoped.push(blocks[activeIndex + 1]);
-  }
-  return scoped.filter((block, index, array) => array.findIndex((entry) => entry.id === block.id) === index);
+export function buildScope(_blocks: BlockInfo[], activeBlock: BlockInfo) {
+  return [activeBlock];
 }

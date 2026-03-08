@@ -9,14 +9,14 @@ This project is in early development. It currently targets Thunderbird 128+ and 
 ## Features
 
 - Grammar-only suggestions layered on top of Thunderbird compose windows
-- Current-paragraph-only checking by default, with an optional nearby-paragraph mode
+- Current-paragraph-only checking while you type
 - User-configured OpenAI-compatible server URL, model, and saved API key
 - Custom prompt support with a bounded prompt budget
 - Grammar allowlist for approved phrases and project-specific exceptions
-- Automatic exclusion of quoted reply text and email signatures from grammar checking
+- Automatic exclusion of email signatures from grammar checking
 - Corrected-text plus local diffing so inline suggestions do not depend on model-provided offsets
 - Request lifecycle guards that ignore stale responses while you keep typing
-- Compose-action `Check` mode for running one-off grammar checks on selected text with bounded nearby context
+- Compose-action `Check` mode for queueing selected paragraphs through the normal per-paragraph grammar suggestion flow
 - Debug logging for Browser Console and Debug Add-ons troubleshooting, enabled by default
 - Per-message pause control
 

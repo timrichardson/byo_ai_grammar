@@ -6,7 +6,6 @@ export const DEFAULT_SETTINGS: Settings = {
   baseUrl: "https://api.together.xyz/v1",
   apiKey: "",
   model: "google/gemma-3n-E4B-it",
-  checkCurrentParagraphOnly: true,
   debounceMs: 900,
   customPrompt: "Focus on contemporary standard English with light formality.",
   grammarAllowlist: []

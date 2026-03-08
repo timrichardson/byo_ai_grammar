@@ -2,12 +2,20 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.4.21] - 2026-03-08
+
+### Changed
+
+- Removed the paragraph-scope setting and made automatic compose checks current-paragraph-only by default
+- Changed compose-action `Check` mode to process selected paragraphs individually even when the old paragraph-only option had been enabled, so multi-paragraph selections always render normal inline suggestions across every selected block
+- Removed quoted-reply exclusion and now only keep signature content out of automatic grammar checks
+
 ## [0.4.19] - 2026-03-08
 
 ### Changed
 
 - Replaced the toolbar and add-on icons with a teacher-inspired spectacles mark, including a muted paused variant for the compose action
-- Added a third compose-action state that switches the toolbar button to `Check` for selected text, then runs a bounded manual grammar check on that selection without sending excessive surrounding context
+- Added a third compose-action state that switches the toolbar button to `Check` for selected paragraphs, then runs each selected paragraph through the normal bounded grammar-check flow so all paragraph-level corrections still appear inline
 
 ## [0.4.18] - 2026-03-08
 

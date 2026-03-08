@@ -1,42 +1,43 @@
 import { describe, expect, it } from "vitest";
 
-import { getExclusionBoundaryOffset, getQuotedReplyOffset } from "./block-extractor";
+import { getExclusionBoundaryOffset } from "./block-extractor";
 
-describe("quoted reply exclusion", () => {
-  it("detects a plain-text reply header before quoted lines", () => {
+describe("signature exclusion", () => {
+  it("detects the signature separator", () => {
     const bodyText = [
       "Thanks, that helps.",
       "",
-      "On 8/3/26 10:07, info@growthpath.com.au wrote:",
-      "> message: Pick step failed."
+      "--",
+      "Signature"
     ].join("\n");
 
-    expect(getQuotedReplyOffset(bodyText)).toBe(bodyText.indexOf("On 8/3/26 10:07, info@growthpath.com.au wrote:"));
+    expect(getExclusionBoundaryOffset(bodyText)).toBe(bodyText.indexOf("--"));
   });
 
-  it("detects a Thunderbird reply header even when visible text drops leading > markers", () => {
+  it("returns null when no signature separator is present", () => {
     const bodyText = [
-      "On 8/3/26 10:07, info@growthpath.com.au wrote:",
+      "Hello there,",
       "",
-      "message: Pick step failed for sale SO-858922.",
+      "These updates is ready to send.",
       "",
-      "these are good grammar"
+      "Thanks"
     ].join("\n");
 
-    expect(getQuotedReplyOffset(bodyText)).toBe(0);
+    expect(getExclusionBoundaryOffset(bodyText)).toBeNull();
   });
 
-  it("does not treat ordinary lines ending in wrote as a quoted reply", () => {
+  it("does not treat quoted reply text as an exclusion boundary anymore", () => {
     const bodyText = [
-      "I wrote:",
-      "Please keep the Pick/Pack/Ship workflow wording.",
-      "Thanks."
+      "Latest update is ready.",
+      "",
+      "On 8/3/26 10:07, info@growthpath.com.au wrote:",
+      "> Older quoted text"
     ].join("\n");
 
-    expect(getQuotedReplyOffset(bodyText)).toBeNull();
+    expect(getExclusionBoundaryOffset(bodyText)).toBeNull();
   });
 
-  it("uses the earliest quote or signature boundary", () => {
+  it("still uses the signature boundary when quoted text appears earlier", () => {
     const bodyText = [
       "Latest update is ready.",
       "",
@@ -47,6 +48,6 @@ describe("quoted reply exclusion", () => {
       "Signature"
     ].join("\n");
 
-    expect(getExclusionBoundaryOffset(bodyText)).toBe(bodyText.indexOf("On 8/3/26 10:07, info@growthpath.com.au wrote:"));
+    expect(getExclusionBoundaryOffset(bodyText)).toBe(bodyText.indexOf("--"));
   });
 });

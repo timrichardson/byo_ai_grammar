@@ -1,22 +1,28 @@
 import {
+  type BlockInfo,
   buildScope,
   collectBlocks,
   findActiveBlock,
-  getSelectedTextSnapshot,
   getSelectionExclusionReason,
   getSignatureDebugState,
-  type SelectedTextSnapshot
+  setSelectedBlocksRange,
+  type SelectedBlocksSnapshot
 } from "./block-extractor";
 import { composeDebugLog } from "./debug-log";
 import { clearHighlights, getHighlightRecord, renderHighlights } from "./highlights";
 import { hidePopup, showPopup } from "./popup";
 import type { RuntimeMessage } from "../shared/messages";
-import { MAX_SELECTED_TEXT_CHARS, clampJoinedContext } from "../shared/request-budget";
+import { clampJoinedContext } from "../shared/request-budget";
 import { isLatestRequest, matchesSnapshot } from "../shared/request-state";
-import type { CheckRequest, CheckResponse, Settings } from "../shared/types";
+import type { CheckRequest, CheckResponse, GrammarSuggestion, Settings } from "../shared/types";
 
-const SELECTED_TEXT_BLOCK_ID = "byo-ai-grammar-selected-text";
+type HighlightedBlockState = {
+  block: BlockInfo;
+  suggestions: GrammarSuggestion[];
+};
+
 const ignoredIssueIds = new Set<string>();
+const highlightedBlocks = new Map<string, HighlightedBlockState>();
 
 function previewText(value: string): string {
   return value.replace(/\s+/g, " ").slice(0, 160);
@@ -82,21 +88,100 @@ function isCurrentSnapshot(activeBlockId: string, activeText: string): boolean {
   return matchesSnapshot(activeBlockId, activeText, currentActiveBlock?.id ?? null, currentActiveBlock?.text ?? null);
 }
 
-function matchesSelectedTextSnapshot(snapshot: SelectedTextSnapshot): boolean {
-  const currentSelection = getSelectedTextSnapshot();
-  if (currentSelection) {
-    return currentSelection.text === snapshot.text
-      && currentSelection.startOffset === snapshot.startOffset
-      && currentSelection.endOffset === snapshot.endOffset;
+function isBlockSnapshotCurrent(block: BlockInfo): BlockInfo | null {
+  const currentBlock = collectBlocks().find((entry) => entry.id === block.id) ?? null;
+  if (!currentBlock) {
+    return null;
   }
 
-  const selection = document.getSelection();
-  return Boolean(selection && selection.toString() === snapshot.text);
+  return matchesSnapshot(block.id, block.text, currentBlock.id, currentBlock.text) ? currentBlock : null;
 }
 
-function buildSelectionReplacementLabel(correctedText: string): string {
-  const compact = correctedText.replace(/\s+/g, " ").trim();
-  return compact.length > 80 ? "Replace selected text" : compact;
+function clearRenderedSuggestions() {
+  clearHighlights();
+  highlightedBlocks.clear();
+}
+
+function totalHighlightedSuggestionCount(): number {
+  return Array.from(highlightedBlocks.values()).reduce((count, entry) => count + entry.suggestions.length, 0);
+}
+
+function removeHighlightedSuggestion(issueId: string) {
+  for (const [blockId, entry] of highlightedBlocks) {
+    const nextSuggestions = entry.suggestions.filter((suggestion) => suggestion.id !== issueId);
+    if (nextSuggestions.length === entry.suggestions.length) {
+      continue;
+    }
+
+    if (nextSuggestions.length === 0) {
+      highlightedBlocks.delete(blockId);
+    } else {
+      highlightedBlocks.set(blockId, {
+        block: entry.block,
+        suggestions: nextSuggestions
+      });
+    }
+    return;
+  }
+}
+
+function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
+  clearHighlights();
+
+  const activate = (issueId: string, anchorRect: DOMRect) => {
+    const record = getHighlightRecord(issueId);
+    if (!record) {
+      return;
+    }
+
+    showPopup({
+      issue: record.issue,
+      anchorRect,
+      onReplace: async (replacement) => {
+        replaceRange(record.range.cloneRange(), replacement);
+        hidePopup();
+        scheduleFreshCheck();
+      },
+      onPause: async () => {
+        await browser.runtime.sendMessage({ type: "tab:pause", tabId, paused: true } satisfies RuntimeMessage);
+        hidePopup();
+        clearRenderedSuggestions();
+      },
+      onIgnore: async () => {
+        ignoredIssueIds.add(issueId);
+        hidePopup();
+        removeHighlightedSuggestion(issueId);
+        renderAllHighlights(tabId, scheduleFreshCheck);
+      },
+      onAllow: async () => {
+        await browser.runtime.sendMessage({
+          type: "allowlist:add",
+          phrase: record.issue.originalText
+        } satisfies RuntimeMessage);
+        hidePopup();
+        scheduleFreshCheck();
+      }
+    });
+  };
+
+  for (const { block, suggestions } of highlightedBlocks.values()) {
+    renderHighlights(block.element, suggestions, activate);
+  }
+}
+
+function setHighlightedBlockSuggestions(
+  block: BlockInfo,
+  suggestions: GrammarSuggestion[],
+  tabId: number,
+  scheduleFreshCheck: () => void
+) {
+  if (suggestions.length === 0) {
+    highlightedBlocks.delete(block.id);
+  } else {
+    highlightedBlocks.set(block.id, { block, suggestions });
+  }
+
+  renderAllHighlights(tabId, scheduleFreshCheck);
 }
 
 /**
@@ -127,7 +212,7 @@ export async function runCheck(
       exclusionReason,
       signatureState
     });
-    clearHighlights();
+    clearRenderedSuggestions();
     hidePopup();
     return {
       state: "idle",
@@ -135,7 +220,7 @@ export async function runCheck(
     };
   }
 
-  const scopedBlocks = buildScope(blocks, activeBlock, settings.checkCurrentParagraphOnly);
+  const scopedBlocks = buildScope(blocks, activeBlock);
   composeDebugLog(settings.debugMode, "compose:editor", "Selected active and scoped blocks", {
     requestId,
     activeBlockId: activeBlock.id,
@@ -181,7 +266,7 @@ export async function runCheck(
   hidePopup();
   if (!response.ok) {
     if (response.code === "paused") {
-      clearHighlights();
+      clearRenderedSuggestions();
       return {
         state: "paused",
         message: "Grammar suggestions are paused for this draft."
@@ -215,45 +300,8 @@ export async function runCheck(
     suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
   });
 
-  clearHighlights();
-
-  const activate = (issueId: string, anchorRect: DOMRect) => {
-    const record = getHighlightRecord(issueId);
-    if (!record) {
-      return;
-    }
-
-    showPopup({
-      issue: record.issue,
-      anchorRect,
-      onReplace: async (replacement) => {
-        replaceRange(record.range.cloneRange(), replacement);
-        hidePopup();
-        scheduleFreshCheck();
-      },
-      onPause: async () => {
-        await browser.runtime.sendMessage({ type: "tab:pause", tabId, paused: true } satisfies RuntimeMessage);
-        hidePopup();
-        clearHighlights();
-      },
-      onIgnore: async () => {
-        ignoredIssueIds.add(issueId);
-        hidePopup();
-        clearHighlights();
-        renderHighlights(activeBlock.element, visibleSuggestions.filter((suggestion) => suggestion.id !== issueId), activate);
-      },
-      onAllow: async () => {
-        await browser.runtime.sendMessage({
-          type: "allowlist:add",
-          phrase: record.issue.originalText
-        } satisfies RuntimeMessage);
-        hidePopup();
-        scheduleFreshCheck();
-      }
-    });
-  };
-
-  renderHighlights(activeBlock.element, visibleSuggestions, activate);
+  clearRenderedSuggestions();
+  setHighlightedBlockSuggestions(activeBlock, visibleSuggestions, tabId, scheduleFreshCheck);
 
   if (visibleSuggestions.length === 0) {
     return {
@@ -269,140 +317,126 @@ export async function runCheck(
 }
 
 /**
- * Runs a one-off grammar check for the current text selection when the compose action is in `Check`
- * mode.
+ * Runs one manual grammar-check batch for the currently selected paragraphs.
  *
- * Manual selection checks use the selected text as the active prompt input, keep nearby context short,
- * and show one replacement action for the full corrected selection instead of paragraph highlights.
+ * Each selected paragraph is submitted as its own normal grammar request so the compose UI can show
+ * standard per-paragraph highlights without one large all-or-nothing replacement popup.
  */
-export async function runSelectedTextCheck(
+export async function runSelectedBlocksCheck(
   settings: Settings,
   tabId: number,
-  requestId: number,
+  selectionSnapshot: SelectedBlocksSnapshot,
+  nextRequestId: () => number,
   getLatestRequestId: () => number,
-  selectionSnapshot: SelectedTextSnapshot,
-  scheduleFreshCheck: () => void
+  scheduleFreshCheck: () => void,
+  onProgress: (message: string) => void
 ): Promise<CheckStatus> {
-  if (selectionSnapshot.text.length > MAX_SELECTED_TEXT_CHARS) {
-    clearHighlights();
-    hidePopup();
+  clearRenderedSuggestions();
+  hidePopup();
+
+  const queuedBlocks = [...selectionSnapshot.blocks];
+  const totalBlockCount = queuedBlocks.length;
+  if (totalBlockCount === 0) {
     return {
-      state: "error",
-      message: `Selected text is too long for one manual check. Select ${MAX_SELECTED_TEXT_CHARS.toLocaleString()} characters or fewer.`
+      state: "idle",
+      message: "Select one or more paragraphs to run a manual grammar check."
     };
   }
 
-  clearHighlights();
-  hidePopup();
-
-  const payload: CheckRequest = {
-    requestId,
-    tabId,
-    activeBlockId: SELECTED_TEXT_BLOCK_ID,
-    activeText: selectionSnapshot.text,
-    contextText: selectionSnapshot.contextText,
-    blocks: [{ blockId: SELECTED_TEXT_BLOCK_ID, text: selectionSnapshot.text }]
-  };
-
-  composeDebugLog(settings.debugMode, "compose:editor", "Sending selected-text check request", {
-    requestId,
-    activeTextLength: selectionSnapshot.text.length,
-    contextTextLength: selectionSnapshot.contextText.length,
-    activeTextPreview: previewText(selectionSnapshot.text),
-    contextTextPreview: previewText(selectionSnapshot.contextText)
-  });
-
-  const response = await browser.runtime.sendMessage({ type: "check:request", payload } satisfies RuntimeMessage) as CheckResponse;
-  if (!isLatestRequest(requestId, getLatestRequestId()) || response.requestId !== requestId || !matchesSelectedTextSnapshot(selectionSnapshot)) {
-    composeDebugLog(settings.debugMode, "compose:editor", "Dropping stale selected-text response", {
-      requestId,
-      latestRequestId: getLatestRequestId(),
-      responseRequestId: response.requestId
-    });
-    return createStaleResult();
-  }
-
-  if (!response.ok) {
-    if (response.code === "paused") {
-      return {
-        state: "paused",
-        message: "Grammar suggestions are paused for this draft."
-      };
-    }
-
-    if (response.code === "aborted") {
-      composeDebugLog(settings.debugMode, "compose:editor", "Selected-text response was aborted", { requestId });
+  for (let index = 0; index < queuedBlocks.length; index += 1) {
+    const requestId = nextRequestId();
+    const selectedBlock = queuedBlocks[index];
+    const currentBlocks = collectBlocks();
+    const currentBlock = currentBlocks.find((block) => block.id === selectedBlock.id) ?? null;
+    if (!currentBlock || currentBlock.text !== selectedBlock.text) {
+      composeDebugLog(settings.debugMode, "compose:editor", "Stopping selected-paragraph batch because a block changed", {
+        requestId,
+        blockId: selectedBlock.id
+      });
       return createStaleResult();
     }
 
-    composeDebugLog(settings.debugMode, "compose:editor", "Selected-text check failed", {
+    const scopedBlocks = buildScope(currentBlocks, currentBlock);
+    const payload: CheckRequest = {
       requestId,
-      code: response.code,
-      message: response.message
+      tabId,
+      activeBlockId: currentBlock.id,
+      activeText: currentBlock.text,
+      contextText: clampJoinedContext(scopedBlocks.map((block) => block.text)),
+      blocks: scopedBlocks.map((block) => ({ blockId: block.id, text: block.text }))
+    };
+
+    onProgress(`Checking selected paragraphs (${index + 1}/${totalBlockCount})...`);
+    composeDebugLog(settings.debugMode, "compose:editor", "Sending selected-paragraph check request", {
+      requestId,
+      activeBlockId: currentBlock.id,
+      activeTextLength: currentBlock.text.length,
+      contextTextLength: payload.contextText.length,
+      activeTextPreview: previewText(currentBlock.text),
+      contextTextPreview: previewText(payload.contextText)
     });
-    return {
-      state: response.code === "disabled" ? "idle" : "error",
-      message: response.message
-    };
-  }
 
-  const visibleSuggestions = (response.suggestionsByBlock[SELECTED_TEXT_BLOCK_ID] ?? []).filter(
-    (suggestion) => !ignoredIssueIds.has(suggestion.id)
-  );
-  const correctedText = response.correctedTextByBlock[SELECTED_TEXT_BLOCK_ID] ?? selectionSnapshot.text;
-
-  composeDebugLog(settings.debugMode, "compose:editor", "Received selected-text grammar suggestions", {
-    requestId,
-    suggestionCount: visibleSuggestions.length,
-    correctedChanged: correctedText !== selectionSnapshot.text
-  });
-
-  if (visibleSuggestions.length === 0 || correctedText === selectionSnapshot.text) {
-    return {
-      state: "success",
-      message: "No grammar suggestions in the selected text."
-    };
-  }
-
-  const replacementRange = selectionSnapshot.range.cloneRange();
-  showPopup({
-    issue: {
-      id: `${SELECTED_TEXT_BLOCK_ID}:${requestId}`,
-      start: 0,
-      end: selectionSnapshot.text.length,
-      originalText: selectionSnapshot.text,
-      replacementText: correctedText,
-      type: "grammar",
-      message: visibleSuggestions.length === 1
-        ? "Apply the grammar fix to the selected text?"
-        : `Apply ${visibleSuggestions.length} grammar fixes to the selected text?`,
-      suggestions: []
-    },
-    anchorRect: selectionSnapshot.anchorRect,
-    replacements: [{
-      label: buildSelectionReplacementLabel(correctedText),
-      value: correctedText
-    }],
-    showAllowButton: false,
-    onReplace: async (replacement) => {
-      replaceRange(replacementRange.cloneRange(), replacement);
-      hidePopup();
-      scheduleFreshCheck();
-    },
-    onPause: async () => {
-      await browser.runtime.sendMessage({ type: "tab:pause", tabId, paused: true } satisfies RuntimeMessage);
-      hidePopup();
-    },
-    onIgnore: async () => {
-      hidePopup();
-    },
-    onAllow: async () => {
-      hidePopup();
+    const response = await browser.runtime.sendMessage({ type: "check:request", payload } satisfies RuntimeMessage) as CheckResponse;
+    const refreshedBlock = isBlockSnapshotCurrent(currentBlock);
+    if (!isLatestRequest(requestId, getLatestRequestId()) || response.requestId !== requestId || !refreshedBlock) {
+      composeDebugLog(settings.debugMode, "compose:editor", "Dropping stale selected-paragraph response", {
+        requestId,
+        latestRequestId: getLatestRequestId(),
+        responseRequestId: response.requestId,
+        blockId: currentBlock.id
+      });
+      return createStaleResult();
     }
-  });
+
+    if (!response.ok) {
+      if (response.code === "paused") {
+        return {
+          state: "paused",
+          message: "Grammar suggestions are paused for this draft."
+        };
+      }
+
+      if (response.code === "aborted") {
+        composeDebugLog(settings.debugMode, "compose:editor", "Selected-paragraph response was aborted", { requestId });
+        return createStaleResult();
+      }
+
+      composeDebugLog(settings.debugMode, "compose:editor", "Selected-paragraph check failed", {
+        requestId,
+        code: response.code,
+        message: response.message
+      });
+      return {
+        state: response.code === "disabled" ? "idle" : "error",
+        message: response.message
+      };
+    }
+
+    const visibleSuggestions = (response.suggestionsByBlock[refreshedBlock.id] ?? []).filter(
+      (suggestion) => !ignoredIssueIds.has(suggestion.id)
+    );
+    composeDebugLog(settings.debugMode, "compose:editor", "Received selected-paragraph grammar suggestions", {
+      requestId,
+      activeBlockId: refreshedBlock.id,
+      suggestionCount: visibleSuggestions.length,
+      suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
+    });
+
+    setHighlightedBlockSuggestions(refreshedBlock, visibleSuggestions, tabId, scheduleFreshCheck);
+
+    const remainingBlocks = queuedBlocks
+      .slice(index + 1)
+      .map((block) => collectBlocks().find((entry) => entry.id === block.id) ?? null)
+      .filter((block): block is BlockInfo => block !== null);
+    setSelectedBlocksRange(remainingBlocks);
+  }
+
+  const totalSuggestionCount = totalHighlightedSuggestionCount();
 
   return {
     state: "success",
-    message: `${visibleSuggestions.length} grammar suggestion${visibleSuggestions.length === 1 ? "" : "s"} ready for the selected text.`
+    message: totalSuggestionCount === 0
+      ? "No grammar suggestions in the selected paragraphs."
+      : `${totalSuggestionCount} grammar suggestion${totalSuggestionCount === 1 ? "" : "s"} ready across ${totalBlockCount} selected paragraph${totalBlockCount === 1 ? "" : "s"}.`
   };
 }

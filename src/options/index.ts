@@ -23,7 +23,6 @@ function summarizeSettings(settings: Settings) {
   return {
     enabled: settings.enabled,
     debugMode: settings.debugMode,
-    checkCurrentParagraphOnly: settings.checkCurrentParagraphOnly,
     debounceMs: settings.debounceMs,
     baseUrl: settings.baseUrl,
     model: settings.model,
@@ -77,7 +76,6 @@ function readForm(): Settings {
   const settings = {
     enabled: (document.querySelector<HTMLInputElement>("#enabled")?.checked ?? DEFAULT_SETTINGS.enabled),
     debugMode: (document.querySelector<HTMLInputElement>("#debugMode")?.checked ?? DEFAULT_SETTINGS.debugMode),
-    checkCurrentParagraphOnly: document.querySelector<HTMLInputElement>("#checkCurrentParagraphOnly")?.checked ?? DEFAULT_SETTINGS.checkCurrentParagraphOnly,
     debounceMs: Number(document.querySelector<HTMLSelectElement>("#debounceMs")?.value ?? DEFAULT_SETTINGS.debounceMs),
     baseUrl: document.querySelector<HTMLInputElement>("#baseUrl")?.value.trim() ?? DEFAULT_SETTINGS.baseUrl,
     apiKey: document.querySelector<HTMLInputElement>("#apiKey")?.value ?? DEFAULT_SETTINGS.apiKey,
@@ -94,7 +92,6 @@ function applySettings(settings: Settings) {
   const merged = { ...DEFAULT_SETTINGS, ...settings };
   const enabled = document.querySelector<HTMLInputElement>("#enabled");
   const debugMode = document.querySelector<HTMLInputElement>("#debugMode");
-  const paragraphOnly = document.querySelector<HTMLInputElement>("#checkCurrentParagraphOnly");
   const debounce = document.querySelector<HTMLSelectElement>("#debounceMs");
   const baseUrl = document.querySelector<HTMLInputElement>("#baseUrl");
   const apiKey = document.querySelector<HTMLInputElement>("#apiKey");
@@ -104,7 +101,6 @@ function applySettings(settings: Settings) {
 
   if (enabled) enabled.checked = merged.enabled;
   if (debugMode) debugMode.checked = merged.debugMode;
-  if (paragraphOnly) paragraphOnly.checked = merged.checkCurrentParagraphOnly;
   if (debounce) debounce.value = String(merged.debounceMs);
   if (baseUrl) baseUrl.value = merged.baseUrl;
   if (apiKey) apiKey.value = merged.apiKey;

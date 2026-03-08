@@ -19,7 +19,6 @@ export type Settings = {
   baseUrl: string;
   apiKey: string;
   model: string;
-  checkCurrentParagraphOnly: boolean;
   debounceMs: number;
   customPrompt: string;
   grammarAllowlist: string[];

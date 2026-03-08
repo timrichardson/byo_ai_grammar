@@ -37,7 +37,7 @@ async function syncComposeAction(tabId: number) {
     title: paused
       ? "Resume grammar suggestions for this draft"
       : hasSelection
-        ? "Check the selected text"
+        ? "Check the selected paragraphs"
         : "Pause grammar suggestions for this draft"
   });
   await browser.composeAction.setIcon({
@@ -63,12 +63,12 @@ browser.composeAction.onClicked.addListener(async (tab: { id?: number }) => {
 
   if (selectionTabs.has(tab.id) && !pausedTabs.has(tab.id)) {
     try {
-      const response = await browser.tabs.sendMessage(tab.id, { type: "compose:runSelectedTextCheck" } satisfies RuntimeMessage) as { handled: boolean };
+      const response = await browser.tabs.sendMessage(tab.id, { type: "compose:runSelectedBlocksCheck" } satisfies RuntimeMessage) as { handled: boolean };
       if (response?.handled) {
         return;
       }
     } catch (error) {
-      console.error("Unable to trigger selected-text grammar check", error);
+      console.error("Unable to trigger selected-paragraph grammar check", error);
     }
 
     selectionTabs.delete(tab.id);
