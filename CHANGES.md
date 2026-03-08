@@ -2,7 +2,7 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
-## [0.4.21] - 2026-03-08
+## [0.4.22] - 2026-03-08
 
 ### Changed
 
