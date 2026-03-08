@@ -2,7 +2,14 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
-## [0.4.24] - 2026-03-08
+## [0.4.26] - 2026-03-08
+
+### Changed
+
+- Submitted the previous paragraph immediately when pressing Enter so finished paragraphs still get checked before the caret moves on
+- Kept prior paragraph suggestions visible more reliably when Thunderbird remaps paragraph DOM nodes after edits or new lines
+
+## [0.4.25] - 2026-03-08
 
 ### Changed
 

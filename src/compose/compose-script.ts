@@ -1,5 +1,11 @@
-import { getSelectedBlocksSnapshot, type SelectedBlocksSnapshot } from "./block-extractor";
-import { runCheck, runSelectedBlocksCheck, type CheckStatus } from "./editor";
+import {
+  collectBlocks,
+  findActiveBlock,
+  getSelectedBlocksSnapshot,
+  type BlockInfo,
+  type SelectedBlocksSnapshot
+} from "./block-extractor";
+import { runBlockCheck, runCheck, runSelectedBlocksCheck, type CheckStatus } from "./editor";
 import { composeDebugLog } from "./debug-log";
 import { setStatusIndicator } from "./status-indicator";
 import { getBuildFingerprint } from "../shared/build-info";
@@ -15,6 +21,7 @@ let bodyObserver: MutationObserver | null = null;
 let bodySnapshotPoller: number | null = null;
 let lastObservedBodyText = "";
 let latestSelectionSnapshot: SelectedBlocksSnapshot | null = null;
+let pendingEnterParagraphCheck: number | null = null;
 
 function getLatestRequestId() {
   return latestRequestId;
@@ -98,6 +105,58 @@ function scheduleCheck(immediate = false) {
       }
     }
   }, delay);
+}
+
+function schedulePreviousParagraphCheck(blockSnapshot: BlockInfo) {
+  if (!settings || tabId < 0 || !settings.enabled) {
+    return;
+  }
+
+  if (pendingEnterParagraphCheck !== null) {
+    window.clearTimeout(pendingEnterParagraphCheck);
+  }
+
+  pendingEnterParagraphCheck = window.setTimeout(async () => {
+    pendingEnterParagraphCheck = null;
+    if (!settings || tabId < 0 || !settings.enabled) {
+      return;
+    }
+
+    lastObservedBodyText = getBodyTextSnapshot();
+    const currentBlocks = collectBlocks();
+    const currentActiveBlock = findActiveBlock(currentBlocks);
+    if (currentActiveBlock?.id === blockSnapshot.id) {
+      return;
+    }
+
+    const currentBlock = currentBlocks.find((block) => block.id === blockSnapshot.id) ?? null;
+    if (!currentBlock || currentBlock.text !== blockSnapshot.text) {
+      return;
+    }
+
+    if (timer !== null) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+
+    const activeSettings = settings;
+    const requestId = ++latestRequestId;
+    composeDebugLog(activeSettings.debugMode, "compose", "Running immediate previous-paragraph check", {
+      requestId,
+      tabId,
+      blockId: currentBlock.id
+    });
+    setStatusIndicator("Checking grammar in the previous paragraph...", "checking");
+    const result = await runBlockCheck(activeSettings, tabId, requestId, getLatestRequestId, () => scheduleCheck(true), currentBlock);
+    if (!result.stale && requestId === latestRequestId) {
+      setStatusIndicator(result.message, result.state);
+      composeDebugLog(activeSettings.debugMode, "compose", "Applied previous-paragraph check result", {
+        requestId,
+        state: result.state,
+        message: result.message
+      });
+    }
+  }, 0);
 }
 
 function observeComposeBodyChanges() {
@@ -211,6 +270,19 @@ async function bootstrap() {
   document.addEventListener("input", () => {
     scheduleCheck();
     void syncSelectionActionState();
+  }, true);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
+      return;
+    }
+
+    const activeBlock = findActiveBlock(collectBlocks());
+    if (!activeBlock || !activeBlock.text.trim()) {
+      return;
+    }
+
+    schedulePreviousParagraphCheck(activeBlock);
   }, true);
 
   // Thunderbird compose sometimes updates the editor on paste without reliably surfacing

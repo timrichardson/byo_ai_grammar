@@ -143,21 +143,37 @@ function totalHighlightedSuggestionCount(): number {
 }
 
 function pruneInvalidHighlightedBlocks() {
-  const currentBlocksById = new Map(collectBlocks().map((block) => [block.id, block]));
+  const currentBlocks = collectBlocks();
+  const currentBlocksById = new Map(currentBlocks.map((block) => [block.id, block]));
+  const claimedBlockIds = new Set<string>();
+  const nextHighlightedBlocks = new Map<string, HighlightedBlockState>();
 
-  for (const [blockId, entry] of highlightedBlocks) {
-    const currentBlock = currentBlocksById.get(blockId);
-    if (!currentBlock || currentBlock.text !== entry.block.text) {
-      highlightedBlocks.delete(blockId);
+  for (const entry of highlightedBlocks.values()) {
+    const currentBlockById = currentBlocksById.get(entry.block.id);
+    if (currentBlockById && currentBlockById.text === entry.block.text && !claimedBlockIds.has(currentBlockById.id)) {
+      claimedBlockIds.add(currentBlockById.id);
+      nextHighlightedBlocks.set(currentBlockById.id, {
+        block: currentBlockById,
+        suggestions: entry.suggestions
+      });
       continue;
     }
 
-    if (currentBlock.element !== entry.block.element) {
-      highlightedBlocks.set(blockId, {
-        block: currentBlock,
-        suggestions: entry.suggestions
-      });
+    const fallbackBlock = currentBlocks.find((block) => block.text === entry.block.text && !claimedBlockIds.has(block.id));
+    if (!fallbackBlock) {
+      continue;
     }
+
+    claimedBlockIds.add(fallbackBlock.id);
+    nextHighlightedBlocks.set(fallbackBlock.id, {
+      block: fallbackBlock,
+      suggestions: entry.suggestions
+    });
+  }
+
+  highlightedBlocks.clear();
+  for (const [blockId, entry] of nextHighlightedBlocks) {
+    highlightedBlocks.set(blockId, entry);
   }
 }
 
@@ -271,7 +287,6 @@ export async function runCheck(
       exclusionReason,
       signatureState
     });
-    clearRenderedSuggestions();
     hidePopup();
     return {
       state: "idle",
@@ -364,6 +379,103 @@ export async function runCheck(
   return {
     state: "success",
     message: `${visibleSuggestions.length} grammar suggestion${visibleSuggestions.length === 1 ? "" : "s"} ready.`
+  };
+}
+
+/**
+ * Runs one grammar check for a previously captured paragraph snapshot.
+ *
+ * This is used when the user presses Enter to start a new paragraph so the paragraph they just
+ * finished can be checked immediately instead of waiting for the normal debounce window.
+ */
+export async function runBlockCheck(
+  settings: Settings,
+  tabId: number,
+  requestId: number,
+  getLatestRequestId: () => number,
+  scheduleFreshCheck: () => void,
+  blockSnapshot: BlockInfo
+): Promise<CheckStatus> {
+  suggestionSummaryContext = { mode: "single" };
+
+  const scopedBlocks = buildScope([blockSnapshot], blockSnapshot);
+  const payload: CheckRequest = {
+    requestId,
+    tabId,
+    activeBlockId: blockSnapshot.id,
+    activeText: blockSnapshot.text,
+    contextText: clampJoinedContext(scopedBlocks.map((block) => block.text)),
+    blocks: scopedBlocks.map((block) => ({ blockId: block.id, text: block.text }))
+  };
+
+  composeDebugLog(settings.debugMode, "compose:editor", "Sending previous-paragraph check request", {
+    requestId,
+    activeBlockId: blockSnapshot.id,
+    activeTextLength: blockSnapshot.text.length,
+    contextTextLength: payload.contextText.length
+  });
+
+  const response = await browser.runtime.sendMessage({ type: "check:request", payload } satisfies RuntimeMessage) as CheckResponse;
+  const refreshedBlock = isBlockSnapshotCurrent(blockSnapshot);
+  if (!isLatestRequest(requestId, getLatestRequestId()) || response.requestId !== requestId || !refreshedBlock) {
+    composeDebugLog(settings.debugMode, "compose:editor", "Dropping stale previous-paragraph response", {
+      requestId,
+      latestRequestId: getLatestRequestId(),
+      responseRequestId: response.requestId,
+      blockId: blockSnapshot.id
+    });
+    return createStaleResult();
+  }
+
+  hidePopup();
+  if (!response.ok) {
+    if (response.code === "paused") {
+      clearRenderedSuggestions();
+      return {
+        state: "paused",
+        message: "Grammar suggestions are paused for this draft."
+      };
+    }
+
+    if (response.code === "aborted") {
+      composeDebugLog(settings.debugMode, "compose:editor", "Previous-paragraph response was aborted", { requestId });
+      return createStaleResult();
+    }
+
+    composeDebugLog(settings.debugMode, "compose:editor", "Received previous-paragraph grammar error response", {
+      requestId,
+      code: response.code,
+      message: response.message
+    });
+    return {
+      state: response.code === "disabled" ? "idle" : "error",
+      message: response.message
+    };
+  }
+
+  const visibleSuggestions = (response.suggestionsByBlock[refreshedBlock.id] ?? []).filter(
+    (suggestion) => !ignoredIssueIds.has(suggestion.id)
+  );
+
+  composeDebugLog(settings.debugMode, "compose:editor", "Received previous-paragraph grammar suggestions", {
+    requestId,
+    activeBlockId: refreshedBlock.id,
+    suggestionCount: visibleSuggestions.length,
+    suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
+  });
+
+  setHighlightedBlockSuggestions(refreshedBlock, visibleSuggestions, tabId, scheduleFreshCheck);
+
+  if (visibleSuggestions.length === 0) {
+    return {
+      state: "success",
+      message: "No grammar suggestions in the previous paragraph."
+    };
+  }
+
+  return {
+    state: "success",
+    message: `${visibleSuggestions.length} grammar suggestion${visibleSuggestions.length === 1 ? "" : "s"} ready in the previous paragraph.`
   };
 }
 
