@@ -73,4 +73,19 @@ describe("buildSuggestionsFromCorrection", () => {
       suggestions: [","]
     });
   });
+
+  it("emits deletion-only suggestions for repeated words", () => {
+    const suggestions = buildSuggestionsFromCorrection(
+      "The cat run ran up the tree.",
+      "The cat ran up the tree.",
+      "block-1"
+    );
+
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]).toMatchObject({
+      originalText: "run ",
+      replacementText: "",
+      suggestions: []
+    });
+  });
 });

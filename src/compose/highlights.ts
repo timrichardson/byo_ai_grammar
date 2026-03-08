@@ -1,4 +1,5 @@
 import { createRangeForOffsets } from "./range-mapper";
+import { debugLog } from "../shared/debug";
 import type { GrammarSuggestion } from "../shared/types";
 
 /** Overlay-backed highlight record for one active grammar suggestion. */
@@ -21,6 +22,11 @@ const renderGroups: HighlightRenderGroup[] = [];
 let overlay: HTMLDivElement | null = null;
 let refreshQueued = false;
 let listenersAttached = false;
+let highlightDebugLoggingEnabled = false;
+
+export function setHighlightDebugLogging(enabled: boolean) {
+  highlightDebugLoggingEnabled = enabled;
+}
 
 function getIssueRects(range: Range): DOMRect[] {
   const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 1 && rect.height > 1);
@@ -62,12 +68,23 @@ function attachOverlayListeners() {
 
 function renderGroup(group: HighlightRenderGroup, root: HTMLDivElement) {
   if (!document.body.contains(group.blockElement)) {
+    debugLog(highlightDebugLoggingEnabled, "compose:render", "Skipping highlight render for detached block", {
+      issueCount: group.issues.length,
+      paragraphKey: group.blockElement.dataset.writingSuggestionsParagraphKey ?? null
+    });
     return;
   }
 
   for (const issue of group.issues) {
     const range = createRangeForOffsets(group.blockElement, issue.start, issue.end);
     if (!range) {
+      debugLog(highlightDebugLoggingEnabled, "compose:render", "Skipping highlight because offsets no longer map", {
+        issueId: issue.id,
+        start: issue.start,
+        end: issue.end,
+        blockTextLength: group.blockElement.innerText.length,
+        reason: "range_mapping_failed"
+      });
       continue;
     }
 
@@ -102,6 +119,10 @@ function renderGroup(group: HighlightRenderGroup, root: HTMLDivElement) {
 
 function refreshHighlights() {
   const root = ensureOverlay();
+  debugLog(highlightDebugLoggingEnabled, "compose:render", "Refreshing highlight overlay", {
+    groupCount: renderGroups.length,
+    recordCount: records.size
+  });
   root.replaceChildren();
   records.clear();
 
@@ -175,6 +196,11 @@ export function renderHighlights(
   issues: GrammarSuggestion[],
   onActivate: (issueId: string, anchorRect: DOMRect) => void
 ) {
+  debugLog(highlightDebugLoggingEnabled, "compose:render", "Queueing paragraph highlights", {
+    issueCount: issues.length,
+    paragraphKey: blockElement.dataset.writingSuggestionsParagraphKey ?? null,
+    blockTextLength: blockElement.innerText.length
+  });
   renderGroups.push({ blockElement, issues, onActivate });
   refreshHighlights();
 }

@@ -10,8 +10,10 @@ import { getTextForRangeMapping } from "./range-mapper";
 /** Visible paragraph-like block that can be checked and reconciled locally. */
 export type BlockInfo = {
   id: string;
+  paragraphKey: string;
   element: HTMLElement;
   text: string;
+  visibleIndex: number;
 };
 
 /** Snapshot of the current signature exclusion state for debug logging. */
@@ -35,6 +37,25 @@ export type SelectedBlocksSnapshot = {
 const BLOCK_SELECTOR = "p, div, li, blockquote, pre";
 const SIGNATURE_SEPARATOR_PATTERN = /(^|\n)--\s*\n/m;
 let blockIdCounter = 0;
+
+function normalizeParagraphIdentityText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function hashParagraphText(text: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+/** Builds a stable paragraph key from normalized paragraph text and duplicate occurrence order. */
+export function buildParagraphKey(text: string, occurrenceIndex: number): string {
+  return `${hashParagraphText(normalizeParagraphIdentityText(text))}:${occurrenceIndex}`;
+}
 
 function createBlockId(): string {
   blockIdCounter += 1;
@@ -251,6 +272,7 @@ export function getSignatureDebugState(): SignatureDebugState {
 /** Returns visible leaf blocks before any signature cutoff. */
 export function collectBlocks(): BlockInfo[] {
   const blocks: BlockInfo[] = [];
+  const paragraphOccurrences = new Map<string, number>();
 
   for (const element of getBlocksBeforeExclusionBoundary()) {
     if (!isMeaningfulBlock(element)) {
@@ -264,10 +286,18 @@ export function collectBlocks(): BlockInfo[] {
       continue;
     }
 
+    const normalizedIdentityText = normalizeParagraphIdentityText(rawText);
+    const occurrenceIndex = paragraphOccurrences.get(normalizedIdentityText) ?? 0;
+    paragraphOccurrences.set(normalizedIdentityText, occurrenceIndex + 1);
+    const paragraphKey = buildParagraphKey(rawText, occurrenceIndex);
+    element.dataset.writingSuggestionsParagraphKey = paragraphKey;
+
     blocks.push({
       id,
+      paragraphKey,
       element,
-      text: rawText
+      text: rawText,
+      visibleIndex: blocks.length
     });
   }
 

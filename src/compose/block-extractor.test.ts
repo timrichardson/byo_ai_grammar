@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getExclusionBoundaryOffset } from "./block-extractor";
+import { buildParagraphKey, getExclusionBoundaryOffset } from "./block-extractor";
 
 describe("signature exclusion", () => {
   it("detects the signature separator", () => {
@@ -49,5 +49,12 @@ describe("signature exclusion", () => {
     ].join("\n");
 
     expect(getExclusionBoundaryOffset(bodyText)).toBe(bodyText.indexOf("--"));
+  });
+});
+
+describe("buildParagraphKey", () => {
+  it("stays stable across whitespace normalization and changes by duplicate occurrence", () => {
+    expect(buildParagraphKey("The updates are good.", 0)).toBe(buildParagraphKey("The   updates are good.", 0));
+    expect(buildParagraphKey("The updates are good.", 0)).not.toBe(buildParagraphKey("The updates are good.", 1));
   });
 });

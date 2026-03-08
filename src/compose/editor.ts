@@ -14,7 +14,7 @@ import { hidePopup, showPopup } from "./popup";
 import { setStatusIndicator } from "./status-indicator";
 import type { RuntimeMessage } from "../shared/messages";
 import { clampJoinedContext } from "../shared/request-budget";
-import { isLatestRequest, matchesSnapshot } from "../shared/request-state";
+import { isLatestParagraphRequest, matchesParagraphSnapshot } from "../shared/request-state";
 import type { CheckRequest, CheckResponse, GrammarSuggestion, Settings } from "../shared/types";
 
 type HighlightedBlockState = {
@@ -29,6 +29,7 @@ type SuggestionSummaryContext =
 const ignoredIssueIds = new Set<string>();
 const highlightedBlocks = new Map<string, HighlightedBlockState>();
 let suggestionSummaryContext: SuggestionSummaryContext | null = null;
+let debugLoggingEnabled = false;
 
 /** Compose-side status result used to update the floating indicator after each check. */
 export type CheckStatus = {
@@ -84,19 +85,13 @@ function createStaleResult(): CheckStatus {
   };
 }
 
-function isCurrentSnapshot(activeBlockId: string, activeText: string): boolean {
-  const blocks = collectBlocks();
-  const currentActiveBlock = findActiveBlock(blocks);
-  return matchesSnapshot(activeBlockId, activeText, currentActiveBlock?.id ?? null, currentActiveBlock?.text ?? null);
-}
-
 function isBlockSnapshotCurrent(block: BlockInfo): BlockInfo | null {
-  const currentBlock = collectBlocks().find((entry) => entry.id === block.id) ?? null;
+  const currentBlock = collectBlocks().find((entry) => entry.paragraphKey === block.paragraphKey) ?? null;
   if (!currentBlock) {
     return null;
   }
 
-  return matchesSnapshot(block.id, block.text, currentBlock.id, currentBlock.text) ? currentBlock : null;
+  return matchesParagraphSnapshot(block.paragraphKey, block.text, currentBlock.paragraphKey, currentBlock.text) ? currentBlock : null;
 }
 
 function formatSuggestionSummary(count: number): CheckStatus | null {
@@ -144,30 +139,51 @@ function totalHighlightedSuggestionCount(): number {
 
 function pruneInvalidHighlightedBlocks() {
   const currentBlocks = collectBlocks();
-  const currentBlocksById = new Map(currentBlocks.map((block) => [block.id, block]));
-  const claimedBlockIds = new Set<string>();
+  const currentBlocksByParagraphKey = new Map(currentBlocks.map((block) => [block.paragraphKey, block]));
+  const claimedParagraphKeys = new Set<string>();
   const nextHighlightedBlocks = new Map<string, HighlightedBlockState>();
 
-  for (const entry of highlightedBlocks.values()) {
-    const currentBlockById = currentBlocksById.get(entry.block.id);
-    if (currentBlockById && currentBlockById.text === entry.block.text && !claimedBlockIds.has(currentBlockById.id)) {
-      claimedBlockIds.add(currentBlockById.id);
-      nextHighlightedBlocks.set(currentBlockById.id, {
-        block: currentBlockById,
+  for (const [paragraphKey, entry] of highlightedBlocks) {
+    const currentBlockByParagraphKey = currentBlocksByParagraphKey.get(paragraphKey);
+    if (currentBlockByParagraphKey && currentBlockByParagraphKey.text === entry.block.text && !claimedParagraphKeys.has(currentBlockByParagraphKey.paragraphKey)) {
+      claimedParagraphKeys.add(currentBlockByParagraphKey.paragraphKey);
+      nextHighlightedBlocks.set(currentBlockByParagraphKey.paragraphKey, {
+        block: currentBlockByParagraphKey,
         suggestions: entry.suggestions
+      });
+      composeDebugLog(debugLoggingEnabled, "compose:paragraph-state", "Kept highlighted paragraph after remap", {
+        paragraphKey,
+        blockId: currentBlockByParagraphKey.id,
+        reason: "paragraph_key_match",
+        suggestionCount: entry.suggestions.length
       });
       continue;
     }
 
-    const fallbackBlock = currentBlocks.find((block) => block.text === entry.block.text && !claimedBlockIds.has(block.id));
+    const matchingTextBlocks = currentBlocks.filter((block) => block.text === entry.block.text && !claimedParagraphKeys.has(block.paragraphKey));
+    const fallbackBlock = matchingTextBlocks.length === 1 ? matchingTextBlocks[0] : null;
     if (!fallbackBlock) {
+      composeDebugLog(debugLoggingEnabled, "compose:paragraph-state", "Dropped highlighted paragraph during remap", {
+        paragraphKey,
+        previousBlockId: entry.block.id,
+        reason: matchingTextBlocks.length > 1 ? "ambiguous_remap" : "paragraph_missing_or_changed",
+        suggestionCount: entry.suggestions.length
+      });
       continue;
     }
 
-    claimedBlockIds.add(fallbackBlock.id);
-    nextHighlightedBlocks.set(fallbackBlock.id, {
+    claimedParagraphKeys.add(fallbackBlock.paragraphKey);
+    nextHighlightedBlocks.set(fallbackBlock.paragraphKey, {
       block: fallbackBlock,
       suggestions: entry.suggestions
+    });
+    composeDebugLog(debugLoggingEnabled, "compose:paragraph-state", "Remapped highlighted paragraph by unique text match", {
+      paragraphKey,
+      previousBlockId: entry.block.id,
+      nextParagraphKey: fallbackBlock.paragraphKey,
+      nextBlockId: fallbackBlock.id,
+      reason: "unique_text_match",
+      suggestionCount: entry.suggestions.length
     });
   }
 
@@ -178,16 +194,16 @@ function pruneInvalidHighlightedBlocks() {
 }
 
 function removeHighlightedSuggestion(issueId: string) {
-  for (const [blockId, entry] of highlightedBlocks) {
+  for (const [paragraphKey, entry] of highlightedBlocks) {
     const nextSuggestions = entry.suggestions.filter((suggestion) => suggestion.id !== issueId);
     if (nextSuggestions.length === entry.suggestions.length) {
       continue;
     }
 
     if (nextSuggestions.length === 0) {
-      highlightedBlocks.delete(blockId);
+      highlightedBlocks.delete(paragraphKey);
     } else {
-      highlightedBlocks.set(blockId, {
+      highlightedBlocks.set(paragraphKey, {
         block: entry.block,
         suggestions: nextSuggestions
       });
@@ -250,9 +266,21 @@ function setHighlightedBlockSuggestions(
   scheduleFreshCheck: () => void
 ) {
   if (suggestions.length === 0) {
-    highlightedBlocks.delete(block.id);
+    highlightedBlocks.delete(block.paragraphKey);
+    composeDebugLog(debugLoggingEnabled, "compose:paragraph-state", "Removed paragraph suggestions", {
+      paragraphKey: block.paragraphKey,
+      blockId: block.id,
+      reason: "no_visible_suggestions",
+      trackedParagraphKeys: Array.from(highlightedBlocks.keys())
+    });
   } else {
-    highlightedBlocks.set(block.id, { block, suggestions });
+    highlightedBlocks.set(block.paragraphKey, { block, suggestions });
+    composeDebugLog(debugLoggingEnabled, "compose:paragraph-state", "Updated paragraph suggestions", {
+      paragraphKey: block.paragraphKey,
+      blockId: block.id,
+      suggestionCount: suggestions.length,
+      trackedParagraphKeys: Array.from(highlightedBlocks.keys())
+    });
   }
 
   renderAllHighlights(tabId, scheduleFreshCheck);
@@ -269,9 +297,10 @@ export async function runCheck(
   settings: Settings,
   tabId: number,
   requestId: number,
-  getLatestRequestId: () => number,
+  _getLatestRequestId: () => number,
   scheduleFreshCheck: () => void
 ): Promise<CheckStatus> {
+  debugLoggingEnabled = settings.debugMode;
   suggestionSummaryContext = { mode: "single" };
   const blocks = collectBlocks();
   const exclusionReason = getSelectionExclusionReason();
@@ -294,92 +323,15 @@ export async function runCheck(
     };
   }
 
-  const scopedBlocks = buildScope(blocks, activeBlock);
-  composeDebugLog(settings.debugMode, "compose:editor", "Selected active and scoped blocks", {
-    requestId,
-    activeBlockId: activeBlock.id,
-    blockCount: blocks.length,
-    scopedBlockIds: scopedBlocks.map((block) => block.id),
-    scopedLengths: scopedBlocks.map((block) => block.text.length)
-  });
-  const payload: CheckRequest = {
-    requestId,
+  return runBlockCheck(
+    settings,
     tabId,
-    activeBlockId: activeBlock.id,
-    activeText: activeBlock.text,
-    contextText: clampJoinedContext(scopedBlocks.map((block) => block.text)),
-    blocks: scopedBlocks.map((block) => ({ blockId: block.id, text: block.text }))
-  };
-
-  composeDebugLog(settings.debugMode, "compose:editor", "Sending check request", {
     requestId,
-    activeBlockId: activeBlock.id,
-    activeTextLength: activeBlock.text.length,
-    contextTextLength: payload.contextText.length
-  });
-
-  const response = await browser.runtime.sendMessage({ type: "check:request", payload } satisfies RuntimeMessage) as CheckResponse;
-  if (!isLatestRequest(requestId, getLatestRequestId()) || response.requestId !== requestId || !isCurrentSnapshot(activeBlock.id, activeBlock.text)) {
-    const snapshotMatches = isCurrentSnapshot(activeBlock.id, activeBlock.text);
-    composeDebugLog(settings.debugMode, "compose:editor", "Dropping stale or mismatched response", {
-      requestId,
-      latestRequestId: getLatestRequestId(),
-      responseRequestId: response.requestId,
-      snapshotMatches
-    });
-    return createStaleResult();
-  }
-
-  hidePopup();
-  if (!response.ok) {
-    if (response.code === "paused") {
-      clearRenderedSuggestions();
-      return {
-        state: "paused",
-        message: "Grammar suggestions are paused for this draft."
-      };
-    }
-
-    if (response.code === "aborted") {
-      composeDebugLog(settings.debugMode, "compose:editor", "Response was aborted", { requestId });
-      return createStaleResult();
-    }
-
-    composeDebugLog(settings.debugMode, "compose:editor", "Received grammar error response", {
-      requestId,
-      code: response.code,
-      message: response.message
-    });
-    return {
-      state: response.code === "disabled" ? "idle" : "error",
-      message: response.message
-    };
-  }
-
-  const visibleSuggestions = (response.suggestionsByBlock[activeBlock.id] ?? []).filter(
-    (suggestion) => !ignoredIssueIds.has(suggestion.id)
+    (paragraphKey: string) => paragraphKey === activeBlock.paragraphKey ? requestId : undefined,
+    scheduleFreshCheck,
+    activeBlock,
+    "current-paragraph"
   );
-
-  composeDebugLog(settings.debugMode, "compose:editor", "Received fresh grammar suggestions", {
-    requestId,
-    activeBlockId: activeBlock.id,
-    suggestionCount: visibleSuggestions.length,
-    suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
-  });
-
-  setHighlightedBlockSuggestions(activeBlock, visibleSuggestions, tabId, scheduleFreshCheck);
-
-  if (visibleSuggestions.length === 0) {
-    return {
-      state: "success",
-      message: "No grammar suggestions in this paragraph."
-    };
-  }
-
-  return {
-    state: "success",
-    message: `${visibleSuggestions.length} grammar suggestion${visibleSuggestions.length === 1 ? "" : "s"} ready.`
-  };
 }
 
 /**
@@ -392,10 +344,12 @@ export async function runBlockCheck(
   settings: Settings,
   tabId: number,
   requestId: number,
-  getLatestRequestId: () => number,
+  getLatestParagraphRequestId: (paragraphKey: string) => number | undefined,
   scheduleFreshCheck: () => void,
-  blockSnapshot: BlockInfo
+  blockSnapshot: BlockInfo,
+  requestSource: "current-paragraph" | "previous-paragraph"
 ): Promise<CheckStatus> {
+  debugLoggingEnabled = settings.debugMode;
   suggestionSummaryContext = { mode: "single" };
 
   const scopedBlocks = buildScope([blockSnapshot], blockSnapshot);
@@ -408,21 +362,32 @@ export async function runBlockCheck(
     blocks: scopedBlocks.map((block) => ({ blockId: block.id, text: block.text }))
   };
 
-  composeDebugLog(settings.debugMode, "compose:editor", "Sending previous-paragraph check request", {
+  composeDebugLog(settings.debugMode, "compose:request-lane", "Sending paragraph check request", {
     requestId,
+    source: requestSource,
+    paragraphKey: blockSnapshot.paragraphKey,
     activeBlockId: blockSnapshot.id,
     activeTextLength: blockSnapshot.text.length,
-    contextTextLength: payload.contextText.length
+    contextTextLength: payload.contextText.length,
+    latestLaneRequestId: getLatestParagraphRequestId(blockSnapshot.paragraphKey) ?? null
   });
 
   const response = await browser.runtime.sendMessage({ type: "check:request", payload } satisfies RuntimeMessage) as CheckResponse;
   const refreshedBlock = isBlockSnapshotCurrent(blockSnapshot);
-  if (!isLatestRequest(requestId, getLatestRequestId()) || response.requestId !== requestId || !refreshedBlock) {
-    composeDebugLog(settings.debugMode, "compose:editor", "Dropping stale previous-paragraph response", {
+  const latestParagraphRequestId = getLatestParagraphRequestId(blockSnapshot.paragraphKey);
+  if (!isLatestParagraphRequest(requestId, latestParagraphRequestId) || response.requestId !== requestId || !refreshedBlock) {
+    composeDebugLog(settings.debugMode, "compose:stale", "Dropping stale paragraph response", {
       requestId,
-      latestRequestId: getLatestRequestId(),
+      source: requestSource,
+      paragraphKey: blockSnapshot.paragraphKey,
+      latestLaneRequestId: latestParagraphRequestId ?? null,
       responseRequestId: response.requestId,
-      blockId: blockSnapshot.id
+      blockId: blockSnapshot.id,
+      reason: !isLatestParagraphRequest(requestId, latestParagraphRequestId)
+        ? "latest_request_replaced"
+        : refreshedBlock
+          ? "response_request_mismatch"
+          : "paragraph_missing_or_changed"
     });
     return createStaleResult();
   }
@@ -438,12 +403,18 @@ export async function runBlockCheck(
     }
 
     if (response.code === "aborted") {
-      composeDebugLog(settings.debugMode, "compose:editor", "Previous-paragraph response was aborted", { requestId });
+      composeDebugLog(settings.debugMode, "compose:editor", "Paragraph response was aborted", {
+        requestId,
+        source: requestSource,
+        paragraphKey: blockSnapshot.paragraphKey
+      });
       return createStaleResult();
     }
 
-    composeDebugLog(settings.debugMode, "compose:editor", "Received previous-paragraph grammar error response", {
+    composeDebugLog(settings.debugMode, "compose:editor", "Received paragraph grammar error response", {
       requestId,
+      source: requestSource,
+      paragraphKey: blockSnapshot.paragraphKey,
       code: response.code,
       message: response.message
     });
@@ -457,8 +428,10 @@ export async function runBlockCheck(
     (suggestion) => !ignoredIssueIds.has(suggestion.id)
   );
 
-  composeDebugLog(settings.debugMode, "compose:editor", "Received previous-paragraph grammar suggestions", {
+  composeDebugLog(settings.debugMode, "compose:editor", "Received paragraph grammar suggestions", {
     requestId,
+    source: requestSource,
+    paragraphKey: refreshedBlock.paragraphKey,
     activeBlockId: refreshedBlock.id,
     suggestionCount: visibleSuggestions.length,
     suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
@@ -469,13 +442,17 @@ export async function runBlockCheck(
   if (visibleSuggestions.length === 0) {
     return {
       state: "success",
-      message: "No grammar suggestions in the previous paragraph."
+      message: requestSource === "previous-paragraph"
+        ? "No grammar suggestions in the previous paragraph."
+        : "No grammar suggestions in this paragraph."
     };
   }
 
   return {
     state: "success",
-    message: `${visibleSuggestions.length} grammar suggestion${visibleSuggestions.length === 1 ? "" : "s"} ready in the previous paragraph.`
+    message: requestSource === "previous-paragraph"
+      ? `${visibleSuggestions.length} grammar suggestion${visibleSuggestions.length === 1 ? "" : "s"} ready in the previous paragraph.`
+      : `${visibleSuggestions.length} grammar suggestion${visibleSuggestions.length === 1 ? "" : "s"} ready.`
   };
 }
 
@@ -494,6 +471,7 @@ export async function runSelectedBlocksCheck(
   scheduleFreshCheck: () => void,
   onProgress: (message: string) => void
 ): Promise<CheckStatus> {
+  debugLoggingEnabled = settings.debugMode;
   clearRenderedSuggestions();
   hidePopup();
 
@@ -512,11 +490,12 @@ export async function runSelectedBlocksCheck(
     const requestId = nextRequestId();
     const selectedBlock = queuedBlocks[index];
     const currentBlocks = collectBlocks();
-    const currentBlock = currentBlocks.find((block) => block.id === selectedBlock.id) ?? null;
+    const currentBlock = currentBlocks.find((block) => block.paragraphKey === selectedBlock.paragraphKey) ?? null;
     if (!currentBlock || currentBlock.text !== selectedBlock.text) {
       composeDebugLog(settings.debugMode, "compose:editor", "Stopping selected-paragraph batch because a block changed", {
         requestId,
-        blockId: selectedBlock.id
+        blockId: selectedBlock.id,
+        paragraphKey: selectedBlock.paragraphKey
       });
       return createStaleResult();
     }
@@ -541,12 +520,18 @@ export async function runSelectedBlocksCheck(
 
     const response = await browser.runtime.sendMessage({ type: "check:request", payload } satisfies RuntimeMessage) as CheckResponse;
     const refreshedBlock = isBlockSnapshotCurrent(currentBlock);
-    if (!isLatestRequest(requestId, getLatestRequestId()) || response.requestId !== requestId || !refreshedBlock) {
-      composeDebugLog(settings.debugMode, "compose:editor", "Dropping stale selected-paragraph response", {
+    if (requestId !== getLatestRequestId() || response.requestId !== requestId || !refreshedBlock) {
+      composeDebugLog(settings.debugMode, "compose:stale", "Dropping stale selected-paragraph response", {
         requestId,
         latestRequestId: getLatestRequestId(),
         responseRequestId: response.requestId,
-        blockId: currentBlock.id
+        blockId: currentBlock.id,
+        paragraphKey: currentBlock.paragraphKey,
+        reason: requestId !== getLatestRequestId()
+          ? "latest_request_replaced"
+          : refreshedBlock
+            ? "response_request_mismatch"
+            : "paragraph_missing_or_changed"
       });
       return createStaleResult();
     }
@@ -589,7 +574,7 @@ export async function runSelectedBlocksCheck(
 
     const remainingBlocks = queuedBlocks
       .slice(index + 1)
-      .map((block) => collectBlocks().find((entry) => entry.id === block.id) ?? null)
+      .map((block) => collectBlocks().find((entry) => entry.paragraphKey === block.paragraphKey) ?? null)
       .filter((block): block is BlockInfo => block !== null);
     setSelectedBlocksRange(remainingBlocks);
   }

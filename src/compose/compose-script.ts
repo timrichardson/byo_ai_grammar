@@ -5,8 +5,9 @@ import {
   type BlockInfo,
   type SelectedBlocksSnapshot
 } from "./block-extractor";
-import { runBlockCheck, runCheck, runSelectedBlocksCheck, type CheckStatus } from "./editor";
+import { runBlockCheck, runSelectedBlocksCheck, type CheckStatus } from "./editor";
 import { composeDebugLog } from "./debug-log";
+import { setHighlightDebugLogging } from "./highlights";
 import { setStatusIndicator } from "./status-indicator";
 import { getBuildFingerprint } from "../shared/build-info";
 import { formatStartupPrefix } from "../shared/debug";
@@ -22,6 +23,7 @@ let bodySnapshotPoller: number | null = null;
 let lastObservedBodyText = "";
 let latestSelectionSnapshot: SelectedBlocksSnapshot | null = null;
 let pendingEnterParagraphCheck: number | null = null;
+const latestAutomaticRequestIdByParagraphKey = new Map<string, number>();
 
 function getLatestRequestId() {
   return latestRequestId;
@@ -81,6 +83,14 @@ function scheduleCheck(immediate = false) {
   });
 
   timer = window.setTimeout(async () => {
+    const currentBlocks = collectBlocks();
+    const activeBlock = findActiveBlock(currentBlocks);
+    if (!activeBlock || !activeBlock.text) {
+      composeDebugLog(activeSettings.debugMode, "compose", "No active paragraph available when scheduled check fired", { requestId, tabId });
+      setStatusIndicator("BYO AI Grammar is on. Start typing to check this draft.", "idle");
+      return;
+    }
+
     const paused = await browser.runtime.sendMessage({ type: "tab:isPaused", tabId } satisfies RuntimeMessage) as { paused: boolean };
     if (paused.paused) {
       composeDebugLog(activeSettings.debugMode, "compose", "Skipping check because draft is paused", { requestId, tabId });
@@ -88,9 +98,26 @@ function scheduleCheck(immediate = false) {
       return;
     }
 
-    composeDebugLog(activeSettings.debugMode, "compose", "Running grammar check", { requestId, tabId });
+    latestAutomaticRequestIdByParagraphKey.set(activeBlock.paragraphKey, requestId);
+
+    composeDebugLog(activeSettings.debugMode, "compose:request-lane", "Running automatic paragraph check", {
+      requestId,
+      source: "current-paragraph",
+      tabId,
+      paragraphKey: activeBlock.paragraphKey,
+      blockId: activeBlock.id,
+      latestLaneRequestId: latestAutomaticRequestIdByParagraphKey.get(activeBlock.paragraphKey) ?? null
+    });
     setStatusIndicator("Checking grammar in this paragraph...", "checking");
-    const result = await runCheck(activeSettings, tabId, requestId, getLatestRequestId, () => scheduleCheck(true));
+    const result = await runBlockCheck(
+      activeSettings,
+      tabId,
+      requestId,
+      (paragraphKey: string) => latestAutomaticRequestIdByParagraphKey.get(paragraphKey),
+      () => scheduleCheck(true),
+      activeBlock,
+      "current-paragraph"
+    );
     if (!result.stale && requestId === latestRequestId) {
       setStatusIndicator(result.message, result.state);
       composeDebugLog(activeSettings.debugMode, "compose", "Applied grammar check result", {
@@ -129,8 +156,14 @@ function schedulePreviousParagraphCheck(blockSnapshot: BlockInfo) {
       return;
     }
 
-    const currentBlock = currentBlocks.find((block) => block.id === blockSnapshot.id) ?? null;
+    const currentBlock = currentBlocks.find((block) => block.paragraphKey === blockSnapshot.paragraphKey) ?? null;
     if (!currentBlock || currentBlock.text !== blockSnapshot.text) {
+      composeDebugLog(settings.debugMode, "compose:block-remap", "Previous paragraph no longer maps cleanly after Enter", {
+        previousParagraphKey: blockSnapshot.paragraphKey,
+        previousBlockId: blockSnapshot.id,
+        previousTextLength: blockSnapshot.text.length,
+        reason: currentBlock ? "text_changed" : "paragraph_missing"
+      });
       return;
     }
 
@@ -141,13 +174,25 @@ function schedulePreviousParagraphCheck(blockSnapshot: BlockInfo) {
 
     const activeSettings = settings;
     const requestId = ++latestRequestId;
-    composeDebugLog(activeSettings.debugMode, "compose", "Running immediate previous-paragraph check", {
+    latestAutomaticRequestIdByParagraphKey.set(currentBlock.paragraphKey, requestId);
+    composeDebugLog(activeSettings.debugMode, "compose:request-lane", "Running immediate previous-paragraph check", {
       requestId,
+      source: "previous-paragraph",
       tabId,
-      blockId: currentBlock.id
+      paragraphKey: currentBlock.paragraphKey,
+      blockId: currentBlock.id,
+      latestLaneRequestId: latestAutomaticRequestIdByParagraphKey.get(currentBlock.paragraphKey) ?? null
     });
     setStatusIndicator("Checking grammar in the previous paragraph...", "checking");
-    const result = await runBlockCheck(activeSettings, tabId, requestId, getLatestRequestId, () => scheduleCheck(true), currentBlock);
+    const result = await runBlockCheck(
+      activeSettings,
+      tabId,
+      requestId,
+      (paragraphKey: string) => latestAutomaticRequestIdByParagraphKey.get(paragraphKey),
+      () => scheduleCheck(true),
+      currentBlock,
+      "previous-paragraph"
+    );
     if (!result.stale && requestId === latestRequestId) {
       setStatusIndicator(result.message, result.state);
       composeDebugLog(activeSettings.debugMode, "compose", "Applied previous-paragraph check result", {
@@ -211,6 +256,7 @@ async function bootstrap() {
     tabId,
     debounceMs: settings.debounceMs
   });
+  setHighlightDebugLogging(settings.debugMode);
 
   if (settings.enabled) {
     setStatusIndicator("BYO AI Grammar is on for this draft.", "idle");

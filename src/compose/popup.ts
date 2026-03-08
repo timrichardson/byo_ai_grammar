@@ -1,5 +1,10 @@
 import type { GrammarSuggestion } from "../shared/types";
 
+type PopupReplacement = {
+  label: string;
+  value: string;
+};
+
 const POPUP_ID = "writing-suggestions-popup";
 let popup: HTMLDivElement | null = null;
 let listenersAttached = false;
@@ -44,6 +49,32 @@ export function hidePopup() {
   element.replaceChildren();
 }
 
+/** Builds user-visible replacement actions for a grammar issue, including deletion-only fixes. */
+export function buildPopupReplacements(
+  issue: GrammarSuggestion,
+  replacements?: PopupReplacement[]
+): PopupReplacement[] {
+  if (replacements) {
+    return replacements;
+  }
+
+  if (issue.suggestions.length > 0) {
+    return issue.suggestions.slice(0, 3).map((suggestion) => ({
+      label: suggestion,
+      value: suggestion
+    }));
+  }
+
+  if (issue.replacementText === "" && issue.originalText.trim().length > 0) {
+    return [{
+      label: `Remove "${issue.originalText.trim()}"`,
+      value: ""
+    }];
+  }
+
+  return [];
+}
+
 /** Shows the suggestion popup anchored near the selected grammar highlight. */
 export function showPopup(args: {
   issue: GrammarSuggestion;
@@ -68,10 +99,7 @@ export function showPopup(args: {
   list.style.display = "flex";
   list.style.flexDirection = "column";
   list.style.gap = "8px";
-  const replacements = args.replacements ?? args.issue.suggestions.slice(0, 3).map((suggestion) => ({
-    label: suggestion,
-    value: suggestion
-  }));
+  const replacements = buildPopupReplacements(args.issue, args.replacements);
   if (replacements.length === 0) {
     const empty = document.createElement("div");
     empty.textContent = "No replacement suggestion returned.";
