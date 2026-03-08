@@ -5,7 +5,7 @@ import {
   type BlockInfo,
   type SelectedBlocksSnapshot
 } from "./block-extractor";
-import { runBlockCheck, runSelectedBlocksCheck, type CheckStatus } from "./editor";
+import { resetIgnoredSuggestions, runBlockCheck, runSelectedBlocksCheck, type CheckStatus } from "./editor";
 import { composeDebugLog } from "./debug-log";
 import { setHighlightDebugLogging } from "./highlights";
 import { setStatusIndicator } from "./status-indicator";
@@ -39,6 +39,18 @@ async function syncSelectionActionState() {
     type: "tab:selection",
     tabId,
     hasSelection: latestSelectionSnapshot !== null
+  } satisfies RuntimeMessage);
+}
+
+async function syncIgnoredActionState(hasIgnoredSuggestions = false) {
+  if (tabId < 0) {
+    return;
+  }
+
+  await browser.runtime.sendMessage({
+    type: "tab:ignored",
+    tabId,
+    hasIgnoredSuggestions
   } satisfies RuntimeMessage);
 }
 
@@ -268,6 +280,15 @@ async function bootstrap() {
 
   browser.runtime.onMessage.addListener((message: RuntimeMessage) => {
     if (message.type !== "compose:runSelectedBlocksCheck") {
+      if (message.type === "compose:resetIgnoredSuggestions") {
+        if (tabId < 0) {
+          return Promise.resolve({ handled: false });
+        }
+
+        void resetIgnoredSuggestions(tabId, () => scheduleCheck(true));
+        return Promise.resolve({ handled: true });
+      }
+
       return undefined;
     }
 
@@ -355,6 +376,7 @@ async function bootstrap() {
     }
   }, true);
 
+  await syncIgnoredActionState(false);
   await syncSelectionActionState();
   scheduleCheck();
 }

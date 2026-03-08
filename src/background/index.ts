@@ -106,6 +106,15 @@ browser.menus.onClicked.addListener(async (info: { menuItemId?: string | number 
       pausedTabs.delete(tab.id);
     }
     await syncComposeAction(tab.id);
+    return;
+  }
+
+  if (info.menuItemId === "writing-suggestions-reset-ignored" && typeof tab?.id === "number") {
+    try {
+      await browser.tabs.sendMessage(tab.id, { type: "compose:resetIgnoredSuggestions" } satisfies RuntimeMessage);
+    } catch (error) {
+      console.error("Unable to reset ignored grammar suggestions", error);
+    }
   }
 });
 
@@ -163,6 +172,8 @@ browser.runtime.onMessage.addListener((message: RuntimeMessage, sender: { tab?: 
         selectionTabs.delete(message.tabId);
       }
       void syncComposeAction(message.tabId);
+      return Promise.resolve({ ok: true });
+    case "tab:ignored":
       return Promise.resolve({ ok: true });
     case "check:request":
       return getSettings().then(async (settings) => {

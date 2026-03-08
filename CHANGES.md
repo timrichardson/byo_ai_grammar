@@ -2,6 +2,61 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.5.7] - 2026-03-09
+
+### Changed
+
+- Kept `Reset Ignored Suggestions` always available in the compose context menu so message-level ignores can be cleared even when no popup is open
+
+## [0.5.6] - 2026-03-09
+
+### Changed
+
+- Fixed the editable suggestion field so it takes focus when the popup opens instead of leaving keyboard focus in the compose editor
+
+## [0.5.5] - 2026-03-09
+
+### Changed
+
+- Added editable replacement text in the suggestion popup, moved ignored-suggestion reset into the compose context menu, and removed allowlisted suggestion highlights immediately after approval
+
+## [0.5.4] - 2026-03-09
+
+### Changed
+
+- Moved `Reset ignored suggestions` to the compose context menu so it stays available even when no popup is open, and removed accepted suggestion hints immediately after applying a replacement
+
+## [0.5.3] - 2026-03-09
+
+### Changed
+
+- Added a `Reset ignored checks` action so message-level `Ignore once` decisions can be cleared and restored without reopening the draft
+
+## [0.5.2] - 2026-03-09
+
+### Changed
+
+- Adjusted inline grammar underline colors for light and dark compose surfaces so highlight feedback keeps better contrast across Thunderbird themes
+
+## [0.5.1] - 2026-03-09
+
+### Changed
+
+- Enlarged invisible click targets for tiny inline grammar highlights so one-character corrections are easier to open without changing the visible underline size
+
+## [0.5.0] - 2026-03-09
+
+### Changed
+
+- Added LM Studio local-model compatibility by allowing blank localhost API keys and preferring `json_schema` structured output with `json_object` fallback
+- Confirmed the tested LM Studio connection settings: `http://127.0.0.1:1234/v1` with model `google/gemma-3-4b`, plus `Enable CORS` turned on in LM Studio server settings
+
+## [0.4.31] - 2026-03-08
+
+### Changed
+
+- Switched structured grammar requests to `json_schema` by default, kept `json_object` as a fallback, and verified compatibility with both Together.ai and LM Studio
+
 ## [0.4.30] - 2026-03-08
 
 ### Changed

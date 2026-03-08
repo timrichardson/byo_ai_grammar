@@ -1,9 +1,11 @@
 # BYO AI Grammar
 
 `BYO AI Grammar` is a Thunderbird add-on that provides inline grammar suggestions while composing email. You bring your own LLM, as long as it follows the OpenAI API. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends the current paragraph while typing, or explicitly selected paragraphs when you click `Check`. In settings, you configure the delay, the model location, and the prompt.
-It has been tested with small models that can get lost easily.
+It has been tested with small models that can get lost easily. 
 
-This is an alpha release. I have tested it only with Together.ai on a very small model (fast, cheap, and basic). It seems better than nothing.
+This is an alpha release. I have tested it with Together.ai on a very small open-weights model, google/gemma-3n-E4B-it  (fast, cheap, and basic). The 
+
+I have also tested it with LM Studio and the same model ("google/gemma-3-4b"). Also "gemma-3-12b-it" See notes below.
 
 ## Screenshots
 
@@ -18,6 +20,10 @@ Suggestion popup with replacement and quick actions:
 ## Status
 
 This project is in early development. It currently targets Thunderbird 128. It has only been used on Ubuntu, on stable Thunderbird, with Together.ai as the model provider, and with only a couple of models. The notes about building on other operating systems are best guesses.
+
+## Objective
+To provide free, basic English grammar checking as typo/mistake finder. I am a native English speaker so my grammatical errors are the result of poor typing and editing, not lack of English knowledge, so finding errors is more important than knowing how to fix them. 
+The tool will report the improvement suggestions of the LLM. I have only tested in on very small LLMs, which provide only basic grammar support.
 
 ## Features
 
@@ -39,7 +45,107 @@ This project is in early development. It currently targets Thunderbird 128. It h
   
   
 
-## What You Need
+
+## Install In Thunderbird
+
+### Temporary Developer Install
+
+Use this while actively developing:
+
+1. Open Thunderbird.
+2. Open the Add-ons Manager.
+3. Open `Debug Add-ons`.
+4. Click `Load Temporary Add-on`.
+5. Select `dist/manifest.json`.
+
+This install disappears when Thunderbird restarts.
+
+### Local Installable Add-On
+
+Use this when you want a normal locally installed extension file:
+
+1. Run `npm run package`.
+2. Open Thunderbird.
+3. Open the Add-ons Manager.
+4. Open the gear menu.
+5. Choose `Install Add-on From File...`.
+6. Select the generated `.xpi` file.
+
+The `.xpi` is the correct file for a local install. Do not choose `manifest.json` for this path.
+
+## Configure The Add-On
+
+After installation, open the add-on settings and configure:
+
+- OpenAI-compatible server URL
+- saved API key
+- model string
+- debug logging toggle
+- custom grammar prompt
+- grammar allowlist entries
+
+Recommended Together.ai defaults:
+
+- Server URL: `https://api.together.xyz/v1`
+- Model: `google/gemma-3n-E4B-it`
+
+## Connecting To LLMs
+
+### Hosted OpenAI-Compatible Providers
+
+Use the provider's OpenAI-compatible base URL, your model string, and your API key.
+
+For Together.ai, the tested configuration is:
+
+- Server URL: `https://api.together.xyz/v1`
+- Model: `google/gemma-3n-E4B-it`
+
+### Local LLMs (LM Studio)
+
+`BYO AI Grammar` has been tested with LM Studio using its local OpenAI-compatible server.
+
+Tested LM Studio configuration:
+
+- Server URL: `http://127.0.0.1:1234/v1`
+- Model: `google/gemma-3-4b`
+- API key: leave blank
+
+In LM Studio Server Settings:
+
+- `Require Authentication` should be `Off` (this is the default)
+- `Enable CORS` should be `On` (this is not the default)
+
+If `Enable CORS` is off, Thunderbird will fail before the real request is sent because the browser preflight request is blocked.
+
+## API Key Storage And Security
+
+The add-on stores the API key in Thunderbird extension local storage inside your Thunderbird profile.
+
+Important limitations:
+
+- This is convenient for local use.
+- It is not protected by an OS keychain or hardware-backed secret store.
+- Anyone with access to your local Thunderbird profile may be able to recover it.
+
+If you need stronger secrets handling, this project would need a different architecture such as a local proxy or native helper.
+
+## Privacy Policy
+
+Only the paragraph under your cursor is sent while typing, unless you manually select paragraphs and click `Check`.
+
+The extension does not use analytics or telemetry.
+
+If debug logging is enabled, inspect the Browser Console or the add-on entry in Debug Add-ons to review request ids, stale-response drops, and service errors. The default is off.
+
+## Release Packaging With GitHub Actions
+
+This repository includes a manual GitHub Actions workflow that builds the `.xpi` on demand.
+
+To use it:
+
+
+
+## What You Need to build
 
 - Thunderbird 128 or newer
 - Git
@@ -102,76 +208,6 @@ That produces a file like:
 ```text
 byo_ai_grammar-<version>.xpi
 ```
-
-## Install In Thunderbird
-
-### Temporary Developer Install
-
-Use this while actively developing:
-
-1. Open Thunderbird.
-2. Open the Add-ons Manager.
-3. Open `Debug Add-ons`.
-4. Click `Load Temporary Add-on`.
-5. Select `dist/manifest.json`.
-
-This install disappears when Thunderbird restarts.
-
-### Local Installable Add-On
-
-Use this when you want a normal locally installed extension file:
-
-1. Run `npm run package`.
-2. Open Thunderbird.
-3. Open the Add-ons Manager.
-4. Open the gear menu.
-5. Choose `Install Add-on From File...`.
-6. Select the generated `.xpi` file.
-
-The `.xpi` is the correct file for a local install. Do not choose `manifest.json` for this path.
-
-## Configure The Add-On
-
-After installation, open the add-on settings and configure:
-
-- OpenAI-compatible server URL
-- saved API key
-- model string
-- debug logging toggle
-- custom grammar prompt
-- grammar allowlist entries
-
-Recommended Together.ai defaults:
-
-- Server URL: `https://api.together.xyz/v1`
-- Model: `google/gemma-3n-E4B-it`
-
-## API Key Storage And Security
-
-The add-on stores the API key in Thunderbird extension local storage inside your Thunderbird profile.
-
-Important limitations:
-
-- This is convenient for local use.
-- It is not protected by an OS keychain or hardware-backed secret store.
-- Anyone with access to your local Thunderbird profile may be able to recover it.
-
-If you need stronger secrets handling, this project would need a different architecture such as a local proxy or native helper.
-
-## Privacy Policy
-
-Only the paragraph under your cursor is sent while typing, unless you manually select paragraphs and click `Check`.
-
-The extension does not use analytics or telemetry.
-
-If debug logging is enabled, inspect the Browser Console or the add-on entry in Debug Add-ons to review request ids, stale-response drops, and service errors. The default is off.
-
-## Release Packaging With GitHub Actions
-
-This repository includes a manual GitHub Actions workflow that builds the `.xpi` on demand.
-
-To use it:
-
 1. Open the repository on GitHub.
 2. Open the `Actions` tab.
 3. Choose `Build Release XPI`.
@@ -207,3 +243,70 @@ This project uses Semantic Versioning (`MAJOR.MINOR.PATCH`).
 ## License
 
 This project is licensed under the Mozilla Public License 2.0. See `LICENSE`.
+
+
+# Build
+
+## What You Need to build
+
+- Thunderbird 128 or newer
+- Git
+- Node.js 24 or newer
+- npm 11 or newer
+
+Check your versions:
+
+```bash
+node --version
+npm --version
+```
+
+## Clone The Project
+
+Linux and macOS:
+
+```bash
+git clone https://github.com/timrichardson/byo_ai_grammar.git
+cd byo_ai_grammar
+```
+
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/timrichardson/byo_ai_grammar.git
+Set-Location byo_ai_grammar
+```
+
+## Install Dependencies
+
+All platforms:
+
+```bash
+npm install
+```
+
+## Build The Extension
+
+Standard build:
+
+```bash
+npm run build
+```
+
+Type-check the code:
+
+```bash
+npm run typecheck
+```
+
+Create an installable `.xpi` package:
+
+```bash
+npm run package
+```
+
+That produces a file like:
+
+```text
+byo_ai_grammar-<version>.xpi
+```

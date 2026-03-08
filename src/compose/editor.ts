@@ -134,7 +134,10 @@ function clearRenderedSuggestions(resetSummaryContext = true) {
 }
 
 function totalHighlightedSuggestionCount(): number {
-  return Array.from(highlightedBlocks.values()).reduce((count, entry) => count + entry.suggestions.length, 0);
+  return Array.from(highlightedBlocks.values()).reduce(
+    (count, entry) => count + entry.suggestions.filter((suggestion) => !ignoredIssueIds.has(suggestion.id)).length,
+    0
+  );
 }
 
 function pruneInvalidHighlightedBlocks() {
@@ -193,7 +196,52 @@ function pruneInvalidHighlightedBlocks() {
   }
 }
 
-function removeHighlightedSuggestion(issueId: string) {
+function getVisibleSuggestions(suggestions: GrammarSuggestion[]): GrammarSuggestion[] {
+  return suggestions.filter((suggestion) => !ignoredIssueIds.has(suggestion.id));
+}
+
+function pruneIgnoredIssueIds() {
+  const liveIssueIds = new Set<string>();
+  for (const entry of highlightedBlocks.values()) {
+    for (const suggestion of entry.suggestions) {
+      liveIssueIds.add(suggestion.id);
+    }
+  }
+
+  let changed = false;
+  for (const issueId of Array.from(ignoredIssueIds)) {
+    if (!liveIssueIds.has(issueId)) {
+      ignoredIssueIds.delete(issueId);
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+async function syncIgnoredSuggestionState(tabId: number) {
+  await browser.runtime.sendMessage({
+    type: "tab:ignored",
+    tabId,
+    hasIgnoredSuggestions: ignoredIssueIds.size > 0
+  } satisfies RuntimeMessage);
+}
+
+function removeHighlightedParagraph(paragraphKey: string) {
+  highlightedBlocks.delete(paragraphKey);
+}
+
+function getParagraphKeyForIssue(issueId: string): string | null {
+  for (const [paragraphKey, entry] of highlightedBlocks) {
+    if (entry.suggestions.some((suggestion) => suggestion.id === issueId)) {
+      return paragraphKey;
+    }
+  }
+
+  return null;
+}
+
+function removeSuggestionFromState(issueId: string) {
   for (const [paragraphKey, entry] of highlightedBlocks) {
     const nextSuggestions = entry.suggestions.filter((suggestion) => suggestion.id !== issueId);
     if (nextSuggestions.length === entry.suggestions.length) {
@@ -208,12 +256,18 @@ function removeHighlightedSuggestion(issueId: string) {
         suggestions: nextSuggestions
       });
     }
-    return;
+
+    return true;
   }
+
+  return false;
 }
 
 function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
   pruneInvalidHighlightedBlocks();
+  if (pruneIgnoredIssueIds()) {
+    void syncIgnoredSuggestionState(tabId);
+  }
   clearHighlights();
 
   const activate = (issueId: string, anchorRect: DOMRect) => {
@@ -227,7 +281,13 @@ function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
       anchorRect,
       onReplace: async (replacement) => {
         replaceRange(record.range.cloneRange(), replacement);
+        const paragraphKey = getParagraphKeyForIssue(record.issue.id);
+        if (paragraphKey) {
+          removeHighlightedParagraph(paragraphKey);
+        }
         hidePopup();
+        renderAllHighlights(tabId, scheduleFreshCheck);
+        syncRenderedSuggestionStatus();
         scheduleFreshCheck();
       },
       onPause: async () => {
@@ -239,23 +299,31 @@ function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
       onIgnore: async () => {
         ignoredIssueIds.add(issueId);
         hidePopup();
-        removeHighlightedSuggestion(issueId);
         renderAllHighlights(tabId, scheduleFreshCheck);
         syncRenderedSuggestionStatus();
+        await syncIgnoredSuggestionState(tabId);
       },
       onAllow: async () => {
         await browser.runtime.sendMessage({
           type: "allowlist:add",
           phrase: record.issue.originalText
         } satisfies RuntimeMessage);
+        removeSuggestionFromState(record.issue.id);
         hidePopup();
+        renderAllHighlights(tabId, scheduleFreshCheck);
+        syncRenderedSuggestionStatus();
         scheduleFreshCheck();
       }
     });
   };
 
   for (const { block, suggestions } of highlightedBlocks.values()) {
-    renderHighlights(block.element, suggestions, activate);
+    const visibleSuggestions = getVisibleSuggestions(suggestions);
+    if (visibleSuggestions.length === 0) {
+      continue;
+    }
+
+    renderHighlights(block.element, visibleSuggestions, activate);
   }
 }
 
@@ -424,9 +492,8 @@ export async function runBlockCheck(
     };
   }
 
-  const visibleSuggestions = (response.suggestionsByBlock[refreshedBlock.id] ?? []).filter(
-    (suggestion) => !ignoredIssueIds.has(suggestion.id)
-  );
+  const allSuggestions = response.suggestionsByBlock[refreshedBlock.id] ?? [];
+  const visibleSuggestions = getVisibleSuggestions(allSuggestions);
 
   composeDebugLog(settings.debugMode, "compose:editor", "Received paragraph grammar suggestions", {
     requestId,
@@ -437,7 +504,7 @@ export async function runBlockCheck(
     suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
   });
 
-  setHighlightedBlockSuggestions(refreshedBlock, visibleSuggestions, tabId, scheduleFreshCheck);
+  setHighlightedBlockSuggestions(refreshedBlock, allSuggestions, tabId, scheduleFreshCheck);
 
   if (visibleSuggestions.length === 0) {
     return {
@@ -560,9 +627,8 @@ export async function runSelectedBlocksCheck(
       };
     }
 
-    const visibleSuggestions = (response.suggestionsByBlock[refreshedBlock.id] ?? []).filter(
-      (suggestion) => !ignoredIssueIds.has(suggestion.id)
-    );
+    const allSuggestions = response.suggestionsByBlock[refreshedBlock.id] ?? [];
+    const visibleSuggestions = getVisibleSuggestions(allSuggestions);
     composeDebugLog(settings.debugMode, "compose:editor", "Received selected-paragraph grammar suggestions", {
       requestId,
       activeBlockId: refreshedBlock.id,
@@ -570,7 +636,7 @@ export async function runSelectedBlocksCheck(
       suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
     });
 
-    setHighlightedBlockSuggestions(refreshedBlock, visibleSuggestions, tabId, scheduleFreshCheck);
+    setHighlightedBlockSuggestions(refreshedBlock, allSuggestions, tabId, scheduleFreshCheck);
 
     const remainingBlocks = queuedBlocks
       .slice(index + 1)
@@ -587,4 +653,13 @@ export async function runSelectedBlocksCheck(
       ? "No grammar suggestions in the selected paragraphs."
       : `${totalSuggestionCount} grammar suggestion${totalSuggestionCount === 1 ? "" : "s"} ready across ${totalBlockCount} selected paragraph${totalBlockCount === 1 ? "" : "s"}.`
   };
+}
+
+/** Clears all message-level ignore-once decisions and rerenders any still-valid suggestions. */
+export async function resetIgnoredSuggestions(tabId: number, scheduleFreshCheck: () => void) {
+  ignoredIssueIds.clear();
+  hidePopup();
+  renderAllHighlights(tabId, scheduleFreshCheck);
+  syncRenderedSuggestionStatus();
+  await syncIgnoredSuggestionState(tabId);
 }

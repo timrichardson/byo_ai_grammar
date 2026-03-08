@@ -12,7 +12,9 @@ export type RuntimeMessage =
   | { type: "tab:pause"; tabId: number; paused: boolean }
   | { type: "tab:isPaused"; tabId: number }
   | { type: "tab:selection"; tabId: number; hasSelection: boolean }
-  | { type: "compose:runSelectedBlocksCheck" };
+  | { type: "tab:ignored"; tabId: number; hasIgnoredSuggestions: boolean }
+  | { type: "compose:runSelectedBlocksCheck" }
+  | { type: "compose:resetIgnoredSuggestions" };
 
 /** Response types keyed by runtime message discriminator for shared message handling. */
 export type RuntimeResponseMap = {
@@ -26,5 +28,7 @@ export type RuntimeResponseMap = {
   "tab:pause": { ok: true };
   "tab:isPaused": { paused: boolean };
   "tab:selection": { ok: true };
+  "tab:ignored": { ok: true };
   "compose:runSelectedBlocksCheck": { handled: boolean };
+  "compose:resetIgnoredSuggestions": { handled: boolean };
 };

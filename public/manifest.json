@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "version": "0.4.30",
+  "version": "0.5.7",
   "name": "BYO AI Grammar",
   "description": "Inline grammar suggestions in Thunderbird compose windows using OpenAI-compatible language models.",
   "homepage_url": "https://github.com/timrichardson/byo_ai_grammar",

@@ -17,6 +17,10 @@ type HighlightRenderGroup = {
 
 const OVERLAY_ID = "writing-suggestions-overlay";
 const STYLE_ID = "writing-suggestions-style";
+const MIN_CLICK_TARGET_WIDTH = 18;
+const MIN_CLICK_TARGET_HEIGHT = 18;
+const LIGHT_THEME_UNDERLINE = "#1769aa";
+const DARK_THEME_UNDERLINE = "#8fd0ff";
 const records = new Map<string, HighlightRecord>();
 const renderGroups: HighlightRenderGroup[] = [];
 let overlay: HTMLDivElement | null = null;
@@ -26,6 +30,72 @@ let highlightDebugLoggingEnabled = false;
 
 export function setHighlightDebugLogging(enabled: boolean) {
   highlightDebugLoggingEnabled = enabled;
+}
+
+function parseRgbChannel(value: string): number | null {
+  const parsed = Number(value.trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseColorChannels(value: string): [number, number, number] | null {
+  const match = value.match(/^rgba?\(([^)]+)\)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(",");
+  if (parts.length < 3) {
+    return null;
+  }
+
+  const red = parseRgbChannel(parts[0]);
+  const green = parseRgbChannel(parts[1]);
+  const blue = parseRgbChannel(parts[2]);
+  if (red === null || green === null || blue === null) {
+    return null;
+  }
+
+  return [red, green, blue];
+}
+
+function getRelativeLuminance([red, green, blue]: [number, number, number]): number {
+  const normalize = (channel: number) => {
+    const srgb = channel / 255;
+    return srgb <= 0.03928 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+  };
+
+  return 0.2126 * normalize(red) + 0.7152 * normalize(green) + 0.0722 * normalize(blue);
+}
+
+function isDarkComposeSurface(): boolean {
+  const backgroundCandidates = [document.body, document.documentElement]
+    .map((element) => element ? window.getComputedStyle(element).backgroundColor : "")
+    .filter(Boolean);
+
+  for (const candidate of backgroundCandidates) {
+    const channels = parseColorChannels(candidate);
+    if (!channels) {
+      continue;
+    }
+
+    if (getRelativeLuminance(channels) < 0.45) {
+      return true;
+    }
+
+    return false;
+  }
+
+  const textColor = parseColorChannels(window.getComputedStyle(document.body).color);
+  if (textColor) {
+    return getRelativeLuminance(textColor) > 0.6;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function syncOverlayTheme() {
+  const root = ensureOverlay();
+  root.style.setProperty("--ws-grammar-underline", isDarkComposeSurface() ? DARK_THEME_UNDERLINE : LIGHT_THEME_UNDERLINE);
 }
 
 function getIssueRects(range: Range): DOMRect[] {
@@ -42,6 +112,14 @@ function getIssueRects(range: Range): DOMRect[] {
   const width = Math.max(8, fallbackRect.width || 0);
   const left = fallbackRect.left - (width - fallbackRect.width) / 2;
   return [new DOMRect(left, fallbackRect.top, width, fallbackRect.height)];
+}
+
+function expandClickTargetRect(rect: DOMRect): DOMRect {
+  const width = Math.max(MIN_CLICK_TARGET_WIDTH, rect.width);
+  const height = Math.max(MIN_CLICK_TARGET_HEIGHT, rect.height);
+  const left = rect.left - (width - rect.width) / 2;
+  const top = rect.top - (height - rect.height) / 2;
+  return new DOMRect(left, top, width, height);
 }
 
 function queueRefresh() {
@@ -93,19 +171,22 @@ function renderGroup(group: HighlightRenderGroup, root: HTMLDivElement) {
     const buttons: HTMLButtonElement[] = [];
 
     for (const rect of rects) {
+      const clickRect = expandClickTargetRect(rect);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "ws-highlight";
       button.dataset.issueType = issue.type;
-      button.style.left = `${rect.left + window.scrollX}px`;
-      button.style.top = `${rect.top + window.scrollY}px`;
-      button.style.width = `${rect.width}px`;
-      button.style.height = `${rect.height}px`;
+      button.style.left = `${clickRect.left + window.scrollX}px`;
+      button.style.top = `${clickRect.top + window.scrollY}px`;
+      button.style.width = `${clickRect.width}px`;
+      button.style.height = `${clickRect.height}px`;
+      button.style.setProperty("--ws-underline-left", `${Math.max(0, rect.left - clickRect.left)}px`);
+      button.style.setProperty("--ws-underline-width", `${Math.max(0, rect.width)}px`);
       button.title = issue.message;
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        group.onActivate(issueId, button.getBoundingClientRect());
+        group.onActivate(issueId, rect);
       });
       root.appendChild(button);
       buttons.push(button);
@@ -119,6 +200,7 @@ function renderGroup(group: HighlightRenderGroup, root: HTMLDivElement) {
 
 function refreshHighlights() {
   const root = ensureOverlay();
+  syncOverlayTheme();
   debugLog(highlightDebugLoggingEnabled, "compose:render", "Refreshing highlight overlay", {
     groupCount: renderGroups.length,
     recordCount: records.size
@@ -156,15 +238,15 @@ function ensureOverlay() {
       .ws-highlight::after {
         content: "";
         position: absolute;
-        left: 0;
-        right: 0;
+        left: var(--ws-underline-left, 0);
+        width: var(--ws-underline-width, 100%);
         bottom: 0;
         border-bottom-width: 2px;
         border-bottom-style: solid;
       }
 
       .ws-highlight[data-issue-type="grammar"]::after {
-        border-bottom-color: #1769aa;
+        border-bottom-color: var(--ws-grammar-underline, #1769aa);
         border-bottom-style: dotted;
       }
     `;

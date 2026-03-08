@@ -8,6 +8,12 @@ const MENU_DEFINITIONS = [
     id: "writing-suggestions-pause-message",
     title: "Pause Grammar Suggestions for This Draft",
     contexts: ["compose_body", "editable", "selection"] as const
+  },
+  {
+    id: "writing-suggestions-reset-ignored",
+    title: "Reset Ignored Suggestions",
+    contexts: ["compose_body", "editable", "selection"] as const,
+    enabled: true
   }
 ];
 

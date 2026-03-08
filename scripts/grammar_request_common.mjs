@@ -26,6 +26,24 @@ const MAX_ABSOLUTE_GROWTH = 240;
 const RECOVERABLE_STRING_KEYS = ["corrected_text", "correctedText", "text", "output_text", "output", "result", "answer"];
 const NESTED_OBJECT_KEYS = ["response", "output", "result", "data", "message"];
 
+export const JSON_SCHEMA_RESPONSE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "grammar_response",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["needs_change", "corrected_text"],
+      properties: {
+        needs_change: { type: "boolean" },
+        corrected_text: { type: "string" }
+      }
+    }
+  }
+};
+
+export const JSON_OBJECT_RESPONSE_FORMAT = { type: "json_object" };
+
 function normalizeWhitespace(value) {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -340,7 +358,7 @@ export function createRequestBody({ model, activeText, contextText, customPrompt
   return {
     model,
     temperature: 0,
-    response_format: { type: "json_object" },
+    response_format: JSON_SCHEMA_RESPONSE_FORMAT,
     messages: [
       { role: "system", content: system },
       { role: "user", content: user }

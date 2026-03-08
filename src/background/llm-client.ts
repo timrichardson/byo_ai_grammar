@@ -5,6 +5,22 @@ import { parseCorrectedTextContent } from "../shared/validation";
 import type { CheckRequest, CheckResponse, ConnectionTestResult, GrammarSuggestion, Settings } from "../shared/types";
 
 const REQUEST_TIMEOUT_MS = 60000;
+const JSON_SCHEMA_RESPONSE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "grammar_response",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["needs_change", "corrected_text"],
+      properties: {
+        needs_change: { type: "boolean" },
+        corrected_text: { type: "string" }
+      }
+    }
+  }
+} as const;
+const JSON_OBJECT_RESPONSE_FORMAT = { type: "json_object" } as const;
 
 type ConnectionTestCase = {
   name: string;
@@ -121,9 +137,21 @@ function resolveEndpoint(baseUrl: string): string {
   return `${trimmed}/chat/completions`;
 }
 
+function isLocalhostEndpoint(baseUrl: string): boolean {
+  try {
+    const hostname = new URL(baseUrl.trim()).hostname;
+    return hostname === "127.0.0.1" || hostname === "localhost";
+  } catch {
+    return false;
+  }
+}
+
 function resolveApiKey(settings: Settings): string {
   const savedKey = settings.apiKey.trim();
   if (!savedKey) {
+    if (isLocalhostEndpoint(settings.baseUrl)) {
+      return "";
+    }
     throw new Error("Add an API key in settings.");
   }
   return savedKey;
@@ -131,6 +159,15 @@ function resolveApiKey(settings: Settings): string {
 
 function elapsedMs(startedAt: number): number {
   return Date.now() - startedAt;
+}
+
+function supportsJsonSchemaFallback(status: number, responseText: string): boolean {
+  if (status !== 400) {
+    return false;
+  }
+
+  const normalized = responseText.toLowerCase();
+  return normalized.includes("response_format") && normalized.includes("json_object");
 }
 
 async function callService(activeText: string, contextText: string, settings: Settings, signal?: AbortSignal) {
@@ -147,56 +184,89 @@ async function callService(activeText: string, contextText: string, settings: Se
     customPrompt: settings.customPrompt,
     grammarAllowlist: settings.grammarAllowlist
   });
-  const requestBody = {
+  const baseRequestBody = {
     model: settings.model.trim(),
     temperature: 0,
-    response_format: { type: "json_object" },
     messages: [
       { role: "system", content: system },
       { role: "user", content: user }
     ]
   };
-
-  debugLog(settings.debugMode, "background:llm", "Sending grammar request", {
-    endpoint,
-    activeTextLength: activeText.length,
-    contextTextLength: contextText.length,
-    model: settings.model.trim(),
-    requestBodyBytes: JSON.stringify(requestBody).length
-  });
+  const requestFormats = [
+    { name: "json_schema", responseFormat: JSON_SCHEMA_RESPONSE_FORMAT },
+    { name: "json_object", responseFormat: JSON_OBJECT_RESPONSE_FORMAT }
+  ] as const;
 
   // Keep one local timeout signal that still honors caller cancellation so stale compose requests can
   // stop network work promptly without giving up the extension-wide 60 second transport guardrail.
   const timeout = createTimeoutSignal(signal);
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(requestBody),
-      signal: timeout.signal
-    });
+    let responseText = "";
+    let activeFormatName: "json_schema" | "json_object" = "json_schema";
+    let response: Response | null = null;
 
-    debugLog(settings.debugMode, "background:llm", "Received grammar response headers", {
-      endpoint,
-      elapsedMs: elapsedMs(startedAt),
-      status: response.status,
-      ok: response.ok
-    });
+    for (const format of requestFormats) {
+      const requestBody = {
+        ...baseRequestBody,
+        response_format: format.responseFormat
+      };
 
-    const responseText = await response.text();
+      debugLog(settings.debugMode, "background:llm", "Sending grammar request", {
+        endpoint,
+        activeTextLength: activeText.length,
+        contextTextLength: contextText.length,
+        model: settings.model.trim(),
+        responseFormat: format.name,
+        requestBodyBytes: JSON.stringify(requestBody).length
+      });
 
-    debugLog(settings.debugMode, "background:llm", "Received grammar response body", {
-      endpoint,
-      elapsedMs: elapsedMs(startedAt),
-      status: response.status,
-      bodyLength: responseText.length
-    });
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+        },
+        body: JSON.stringify(requestBody),
+        signal: timeout.signal
+      });
 
-    if (!response.ok) {
+      debugLog(settings.debugMode, "background:llm", "Received grammar response headers", {
+        endpoint,
+        elapsedMs: elapsedMs(startedAt),
+        status: response.status,
+        ok: response.ok,
+        responseFormat: format.name
+      });
+
+      responseText = await response.text();
+
+      debugLog(settings.debugMode, "background:llm", "Received grammar response body", {
+        endpoint,
+        elapsedMs: elapsedMs(startedAt),
+        status: response.status,
+        bodyLength: responseText.length,
+        responseFormat: format.name
+      });
+
+      if (response.ok) {
+        activeFormatName = format.name;
+        break;
+      }
+
+      if (format.name === "json_schema" && supportsJsonSchemaFallback(response.status, responseText)) {
+        debugLog(settings.debugMode, "background:llm", "Retrying grammar request with json_object fallback", {
+          endpoint,
+          status: response.status,
+          responseFormat: format.name
+        });
+        continue;
+      }
+
       throw new Error(`Language service error ${response.status}: ${responseText || response.statusText}`);
+    }
+
+    if (!response?.ok) {
+      throw new Error(`Language service error ${response?.status ?? "unknown"}: ${responseText}`);
     }
 
     const payload = JSON.parse(responseText);
@@ -229,6 +299,7 @@ async function callService(activeText: string, contextText: string, settings: Se
 
     debugLog(settings.debugMode, "background:llm", "Received corrected_text response", {
       elapsedMs: elapsedMs(startedAt),
+      responseFormat: activeFormatName,
       sourceField: normalized.sourceField,
       recovered: normalized.recovered,
       correctedTextLength: normalized.correctedText.length,
