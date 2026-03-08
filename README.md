@@ -158,6 +158,14 @@ Important limitations:
 
 If you need stronger secrets handling, this project would need a different architecture such as a local proxy or native helper.
 
+## Privacy Policy
+
+Only the paragraph under your cursor is sent while typing, unless you manually select paragraphs and click `Check`.
+
+The extension does not use analytics or telemetry.
+
+If debug logging is enabled, inspect the Browser Console or the add-on entry in Debug Add-ons to review request ids, stale-response drops, and service errors. The default is off.
+
 ## Release Packaging With GitHub Actions
 
 This repository includes a manual GitHub Actions workflow that builds the `.xpi` on demand.
@@ -180,6 +188,7 @@ The workflow always uploads the `.xpi` as a workflow artifact. If you choose rel
 - `npm run replay:request -- --base-url https://api.together.xyz/v1 --model google/gemma-3n-E4B-it --active-text "These updates is ready to send."` replays a grammar request outside Thunderbird using `BYO_AI_GRAMMAR_API_KEY`, `TOGETHER_API_KEY`, or `OPENAI_API_KEY` and logs request timing
 - `npm run benchmark:models -- --base-url https://api.together.xyz/v1 --runs 2` benchmarks a default set of smaller Together chat models for contract reliability and latency using the same grammar prompt and the same supported env vars
 - `npm run package` creates a Thunderbird-installable `.xpi`
+- `npm run release:prepare -- --version 0.4.31` verifies a clean git tree, bumps the release version, commits it, builds a new `.xpi`, keeps only the newest three `.xpi` files, and creates a source `.zip` archive for add-on submission
 - `package.json` and `public/manifest.json` should stay aligned on release versions
 
 ## Contributing
