@@ -2,6 +2,17 @@ import type { GrammarSuggestion } from "../shared/types";
 
 const POPUP_ID = "writing-suggestions-popup";
 let popup: HTMLDivElement | null = null;
+let listenersAttached = false;
+
+function attachPopupListeners() {
+  if (listenersAttached) {
+    return;
+  }
+
+  listenersAttached = true;
+  window.addEventListener("resize", hidePopup);
+  window.addEventListener("scroll", hidePopup, true);
+}
 
 function ensurePopup() {
   if (!popup) {
@@ -22,6 +33,7 @@ function ensurePopup() {
     popup.style.fontFamily = '"IBM Plex Sans", "Segoe UI", sans-serif';
     document.documentElement.appendChild(popup);
   }
+  attachPopupListeners();
   return popup;
 }
 

@@ -6,7 +6,7 @@ export type RuntimeMessage =
   | { type: "settings:set"; settings: Settings }
   | { type: "allowlist:add"; phrase: string }
   | { type: "debug:log"; scope: string; message: string; details?: unknown }
-  | { type: "connection:test" }
+  | { type: "connection:test"; settings?: Settings }
   | { type: "tab:getCurrent" }
   | { type: "check:request"; payload: CheckRequest }
   | { type: "tab:pause"; tabId: number; paused: boolean }

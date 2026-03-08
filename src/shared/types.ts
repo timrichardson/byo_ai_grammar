@@ -63,6 +63,11 @@ export type CheckResponse = CheckSuccess | CheckError;
 export type ConnectionTestResult = {
   ok: boolean;
   message: string;
+  caseResults?: Array<{
+    name: string;
+    ok: boolean;
+    detail: string;
+  }>;
 };
 
 /** Normalized corrected-text payload recovered from a provider response. */

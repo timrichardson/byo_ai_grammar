@@ -198,6 +198,7 @@ button.secondary {
 .status {
   min-height: 1.5em;
   margin: 18px 0 0;
+  white-space: pre-line;
 }
 
 .status[data-state="error"] {

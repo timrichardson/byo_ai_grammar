@@ -8,7 +8,7 @@ import {
   normalizeCustomPrompt
 } from "../shared/prompt";
 import type { RuntimeMessage } from "../shared/messages";
-import type { Settings } from "../shared/types";
+import type { ConnectionTestResult, Settings } from "../shared/types";
 
 const form = document.querySelector<HTMLFormElement>("#settings-form");
 const status = document.querySelector<HTMLParagraphElement>("#status");
@@ -39,6 +39,16 @@ function setStatus(message: string, state: "idle" | "success" | "error" = "idle"
   }
   status.textContent = message;
   status.dataset.state = state;
+}
+
+function formatConnectionTestStatus(result: ConnectionTestResult): string {
+  if (!result.caseResults || result.caseResults.length === 0) {
+    return result.message;
+  }
+
+  const summary = result.ok ? "Connection test passed:" : "Connection test found problems:";
+  const lines = result.caseResults.map((caseResult) => `${caseResult.name}: ${caseResult.ok ? "ok" : caseResult.detail}`);
+  return [summary, ...lines].join("\n");
 }
 
 function updatePromptCount() {
@@ -128,12 +138,11 @@ form?.addEventListener("submit", async (event) => {
 });
 
 testButton?.addEventListener("click", async () => {
-  setStatus("Testing connection...");
+  setStatus("Testing connection across 3 sample checks...");
   const settings = readForm();
   debugLog(settings.debugMode, "options", "Testing connection with settings", summarizeSettings(settings));
-  await browser.runtime.sendMessage({ type: "settings:set", settings } satisfies RuntimeMessage);
-  const result = await browser.runtime.sendMessage({ type: "connection:test" } satisfies RuntimeMessage) as { ok: boolean; message: string };
-  setStatus(result.message, result.ok ? "success" : "error");
+  const result = await browser.runtime.sendMessage({ type: "connection:test", settings } satisfies RuntimeMessage) as ConnectionTestResult;
+  setStatus(formatConnectionTestStatus(result), result.ok ? "success" : "error");
 });
 
 promptEditor?.addEventListener("input", updatePromptCount);

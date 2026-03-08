@@ -30,10 +30,6 @@ const ignoredIssueIds = new Set<string>();
 const highlightedBlocks = new Map<string, HighlightedBlockState>();
 let suggestionSummaryContext: SuggestionSummaryContext | null = null;
 
-function previewText(value: string): string {
-  return value.replace(/\s+/g, " ").slice(0, 160);
-}
-
 /** Compose-side status result used to update the floating indicator after each check. */
 export type CheckStatus = {
   state: "idle" | "success" | "paused" | "error";
@@ -229,7 +225,7 @@ function setHighlightedBlockSuggestions(
 /**
  * Runs one grammar check for the current compose selection.
  *
- * This collects bounded nearby context, records debug state for signature and quote exclusions,
+ * This checks the active paragraph, records signature exclusion state,
  * rejects stale responses when the caret moves, and wires accepted suggestions back into the editor
  * without breaking Thunderbird's native undo stack.
  */
@@ -269,12 +265,7 @@ export async function runCheck(
     activeBlockId: activeBlock.id,
     blockCount: blocks.length,
     scopedBlockIds: scopedBlocks.map((block) => block.id),
-    scopedLengths: scopedBlocks.map((block) => block.text.length),
-    activeTextPreview: previewText(activeBlock.text),
-    scopedTextPreviews: scopedBlocks.map((block) => ({
-      blockId: block.id,
-      preview: previewText(block.text)
-    }))
+    scopedLengths: scopedBlocks.map((block) => block.text.length)
   });
   const payload: CheckRequest = {
     requestId,
@@ -289,9 +280,7 @@ export async function runCheck(
     requestId,
     activeBlockId: activeBlock.id,
     activeTextLength: activeBlock.text.length,
-    contextTextLength: payload.contextText.length,
-    activeTextPreview: previewText(activeBlock.text),
-    contextTextPreview: previewText(payload.contextText)
+    contextTextLength: payload.contextText.length
   });
 
   const response = await browser.runtime.sendMessage({ type: "check:request", payload } satisfies RuntimeMessage) as CheckResponse;
@@ -416,9 +405,7 @@ export async function runSelectedBlocksCheck(
       requestId,
       activeBlockId: currentBlock.id,
       activeTextLength: currentBlock.text.length,
-      contextTextLength: payload.contextText.length,
-      activeTextPreview: previewText(currentBlock.text),
-      contextTextPreview: previewText(payload.contextText)
+      contextTextLength: payload.contextText.length
     });
 
     const response = await browser.runtime.sendMessage({ type: "check:request", payload } satisfies RuntimeMessage) as CheckResponse;

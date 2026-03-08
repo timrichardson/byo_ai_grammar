@@ -39,4 +39,38 @@ describe("buildSuggestionsFromCorrection", () => {
   it("ignores trailing whitespace-only cleanup", () => {
     expect(buildSuggestionsFromCorrection("Looks good. ", "Looks good.", "block-1")).toEqual([]);
   });
+
+  it("emits insertion-only suggestions for missing helper words", () => {
+    const suggestions = buildSuggestionsFromCorrection(
+      "I going to send the update.",
+      "I am going to send the update.",
+      "block-1"
+    );
+
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]).toMatchObject({
+      start: 2,
+      end: 2,
+      originalText: "",
+      replacementText: "am ",
+      suggestions: ["am "]
+    });
+  });
+
+  it("emits insertion-only suggestions for missing punctuation", () => {
+    const suggestions = buildSuggestionsFromCorrection(
+      "However I agree.",
+      "However, I agree.",
+      "block-1"
+    );
+
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]).toMatchObject({
+      start: 7,
+      end: 7,
+      originalText: "",
+      replacementText: ",",
+      suggestions: [","]
+    });
+  });
 });

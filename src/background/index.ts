@@ -1,8 +1,9 @@
 import { checkText, testConnection } from "./llm-client";
 import { createMenus } from "./menu";
 import { registerComposeScript } from "./register-compose-script";
-import { getSettings, saveSettings } from "./settings";
-import { buildCacheKey, clearInflightRequest, getInflightRequestIds, pausedTabs, registerInflightRequest, responseCache, selectionTabs } from "./state";
+import { getSettings, sanitizeStoredSettings, saveSettings } from "./settings";
+import { normalizeAllowlistEntries } from "../shared/prompt";
+import { buildCacheKey, clearInflightRequest, clearTabInflightRequests, getInflightRequestIds, pausedTabs, registerInflightRequest, responseCache, selectionTabs } from "./state";
 import { getBuildFingerprint } from "../shared/build-info";
 import { debugLog, formatDebugPrefix, formatStartupPrefix } from "../shared/debug";
 import type { RuntimeMessage } from "../shared/messages";
@@ -56,6 +57,12 @@ browser.runtime.onInstalled.addListener(() => {
   createMenus();
 });
 
+browser.tabs.onRemoved.addListener((tabId: number) => {
+  pausedTabs.delete(tabId);
+  selectionTabs.delete(tabId);
+  clearTabInflightRequests(tabId);
+});
+
 browser.composeAction.onClicked.addListener(async (tab: { id?: number }) => {
   if (typeof tab.id !== "number") {
     return;
@@ -85,7 +92,7 @@ browser.composeAction.onClicked.addListener(async (tab: { id?: number }) => {
   await syncComposeAction(tab.id);
 });
 
-browser.menus.onClicked.addListener(async (info: { menuItemId?: string }, tab?: { id?: number }) => {
+browser.menus.onClicked.addListener(async (info: { menuItemId?: string | number }, tab?: browser.tabs.Tab) => {
   if (info.menuItemId === "writing-suggestions-open-settings") {
     await browser.runtime.openOptionsPage();
     return;
@@ -123,14 +130,16 @@ browser.runtime.onMessage.addListener((message: RuntimeMessage, sender: { tab?: 
       return getSettings().then(async (settings) => {
         const nextSettings = {
           ...settings,
-          grammarAllowlist: Array.from(new Set([...settings.grammarAllowlist, message.phrase.trim()])).filter(Boolean)
+          grammarAllowlist: normalizeAllowlistEntries([...settings.grammarAllowlist, message.phrase])
         };
         await saveSettings(nextSettings);
         responseCache.clear();
         return { ok: true, settings: nextSettings };
       });
     case "connection:test":
-      return getSettings().then((settings) => testConnection(settings));
+      return message.settings
+        ? testConnection(sanitizeStoredSettings(message.settings))
+        : getSettings().then((settings) => testConnection(settings));
     case "tab:getCurrent":
       if (typeof sender.tab?.id === "number") {
         void syncComposeAction(sender.tab.id);

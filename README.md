@@ -1,6 +1,6 @@
 # BYO AI Grammar
 
-`BYO AI Grammar` is a Thunderbird add-on that provides inline grammar suggestions while composing email. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends nearby compose text to a user-configured OpenAI-compatible endpoint such as Together.ai.
+`BYO AI Grammar` is a Thunderbird add-on that provides inline grammar suggestions while composing email. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends the current paragraph while typing, or explicitly selected paragraphs when you click `Check`, to a user-configured OpenAI-compatible endpoint such as Together.ai.
 
 ## Status
 
@@ -17,7 +17,7 @@ This project is in early development. It currently targets Thunderbird 128+ and 
 - Corrected-text plus local diffing so inline suggestions do not depend on model-provided offsets
 - Request lifecycle guards that ignore stale responses while you keep typing
 - Compose-action `Check` mode for queueing selected paragraphs through the normal per-paragraph grammar suggestion flow
-- Debug logging for Browser Console and Debug Add-ons troubleshooting, enabled by default
+- Optional debug logging for Browser Console and Debug Add-ons troubleshooting
 - Per-message pause control
 
 ## What You Need
@@ -81,7 +81,7 @@ npm run package
 That produces a file like:
 
 ```text
-byo_ai_grammar-0.4.19.xpi
+byo_ai_grammar-<version>.xpi
 ```
 
 ## Install In Thunderbird
@@ -118,7 +118,6 @@ After installation, open the add-on settings and configure:
 - OpenAI-compatible server URL
 - saved API key
 - model string
-- grammar checking scope
 - debug logging toggle
 - custom grammar prompt
 - grammar allowlist entries

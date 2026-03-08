@@ -8,10 +8,107 @@ type HighlightRecord = {
   buttons: HTMLButtonElement[];
 };
 
+type HighlightRenderGroup = {
+  blockElement: HTMLElement;
+  issues: GrammarSuggestion[];
+  onActivate: (issueId: string, anchorRect: DOMRect) => void;
+};
+
 const OVERLAY_ID = "writing-suggestions-overlay";
 const STYLE_ID = "writing-suggestions-style";
 const records = new Map<string, HighlightRecord>();
+const renderGroups: HighlightRenderGroup[] = [];
 let overlay: HTMLDivElement | null = null;
+let refreshQueued = false;
+let listenersAttached = false;
+
+function getIssueRects(range: Range): DOMRect[] {
+  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 1 && rect.height > 1);
+  if (rects.length > 0) {
+    return rects;
+  }
+
+  const fallbackRect = range.getBoundingClientRect();
+  if (fallbackRect.height <= 1) {
+    return [];
+  }
+
+  const width = Math.max(8, fallbackRect.width || 0);
+  const left = fallbackRect.left - (width - fallbackRect.width) / 2;
+  return [new DOMRect(left, fallbackRect.top, width, fallbackRect.height)];
+}
+
+function queueRefresh() {
+  if (refreshQueued) {
+    return;
+  }
+
+  refreshQueued = true;
+  window.requestAnimationFrame(() => {
+    refreshQueued = false;
+    refreshHighlights();
+  });
+}
+
+function attachOverlayListeners() {
+  if (listenersAttached) {
+    return;
+  }
+
+  listenersAttached = true;
+  window.addEventListener("resize", queueRefresh);
+  window.addEventListener("scroll", queueRefresh, true);
+}
+
+function renderGroup(group: HighlightRenderGroup, root: HTMLDivElement) {
+  if (!document.body.contains(group.blockElement)) {
+    return;
+  }
+
+  for (const issue of group.issues) {
+    const range = createRangeForOffsets(group.blockElement, issue.start, issue.end);
+    if (!range) {
+      continue;
+    }
+
+    const issueId = issue.id;
+    const rects = getIssueRects(range);
+    const buttons: HTMLButtonElement[] = [];
+
+    for (const rect of rects) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "ws-highlight";
+      button.dataset.issueType = issue.type;
+      button.style.left = `${rect.left + window.scrollX}px`;
+      button.style.top = `${rect.top + window.scrollY}px`;
+      button.style.width = `${rect.width}px`;
+      button.style.height = `${rect.height}px`;
+      button.title = issue.message;
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        group.onActivate(issueId, button.getBoundingClientRect());
+      });
+      root.appendChild(button);
+      buttons.push(button);
+    }
+
+    if (buttons.length > 0) {
+      records.set(issueId, { issue, range: range.cloneRange(), buttons });
+    }
+  }
+}
+
+function refreshHighlights() {
+  const root = ensureOverlay();
+  root.replaceChildren();
+  records.clear();
+
+  for (const group of renderGroups) {
+    renderGroup(group, root);
+  }
+}
 
 function ensureOverlay() {
   if (!document.getElementById(STYLE_ID)) {
@@ -61,6 +158,7 @@ function ensureOverlay() {
     overlay.id = OVERLAY_ID;
     document.documentElement.appendChild(overlay);
   }
+  attachOverlayListeners();
   return overlay;
 }
 
@@ -68,6 +166,7 @@ function ensureOverlay() {
 export function clearHighlights() {
   ensureOverlay().replaceChildren();
   records.clear();
+  renderGroups.length = 0;
 }
 
 /** Renders clickable highlight overlays for the active block's current suggestions. */
@@ -76,40 +175,8 @@ export function renderHighlights(
   issues: GrammarSuggestion[],
   onActivate: (issueId: string, anchorRect: DOMRect) => void
 ) {
-  const root = ensureOverlay();
-  for (const issue of issues) {
-    const range = createRangeForOffsets(blockElement, issue.start, issue.end);
-    if (!range) {
-      continue;
-    }
-
-    const issueId = issue.id;
-    const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 1 && rect.height > 1);
-    const buttons: HTMLButtonElement[] = [];
-
-    for (const rect of rects) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "ws-highlight";
-      button.dataset.issueType = issue.type;
-      button.style.left = `${rect.left + window.scrollX}px`;
-      button.style.top = `${rect.top + window.scrollY}px`;
-      button.style.width = `${rect.width}px`;
-      button.style.height = `${rect.height}px`;
-      button.title = issue.message;
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onActivate(issueId, rect);
-      });
-      root.appendChild(button);
-      buttons.push(button);
-    }
-
-    if (buttons.length > 0) {
-      records.set(issueId, { issue, range: range.cloneRange(), buttons });
-    }
-  }
+  renderGroups.push({ blockElement, issues, onActivate });
+  refreshHighlights();
 }
 
 /** Returns the current overlay metadata for a suggestion, if it is still rendered. */

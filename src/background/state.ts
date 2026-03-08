@@ -38,6 +38,11 @@ export function clearInflightRequest(tabId: number, requestId: number): number {
   return requestIds.size;
 }
 
+/** Clears all tracked in-flight requests for a tab after the compose window closes. */
+export function clearTabInflightRequests(tabId: number) {
+  inflightRequests.delete(tabId);
+}
+
 /** Returns sorted in-flight request ids for debug-friendly logging. */
 export function getInflightRequestIds(tabId: number): number[] {
   return Array.from(inflightRequests.get(tabId) ?? []).sort((left, right) => left - right);

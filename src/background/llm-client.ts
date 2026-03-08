@@ -6,6 +6,47 @@ import type { CheckRequest, CheckResponse, ConnectionTestResult, GrammarSuggesti
 
 const REQUEST_TIMEOUT_MS = 60000;
 
+type ConnectionTestCase = {
+  name: string;
+  activeText: string;
+  contextText: string;
+  expectChange: boolean;
+};
+
+const CONNECTION_TEST_CASES: ConnectionTestCase[] = [
+  {
+    name: "fix-simple",
+    activeText: "These updates is ready to send.",
+    contextText: "",
+    expectChange: true
+  },
+  {
+    name: "keep-good",
+    activeText: "These updates are ready to send.",
+    contextText: "",
+    expectChange: false
+  },
+  {
+    name: "fix-short",
+    activeText: "This findings are useful.",
+    contextText: "",
+    expectChange: true
+  }
+];
+
+type ConnectionTestCaseResult = {
+  name: string;
+  ok: boolean;
+  detail: string;
+};
+
+function formatConnectionTestMessage(caseResults: ConnectionTestCaseResult[]): string {
+  const passedCount = caseResults.filter((result) => result.ok).length;
+  const summary = `${passedCount}/${caseResults.length} checks passed`;
+  const details = caseResults.map((result) => `${result.name}: ${result.ok ? "ok" : result.detail}`).join("; ");
+  return `${summary}. ${details}`;
+}
+
 function createTimeoutSignal(signal?: AbortSignal): { signal: AbortSignal; cleanup: () => void; didTimeOut: () => boolean } {
   const controller = new AbortController();
   let timedOut = false;
@@ -82,10 +123,6 @@ function resolveApiKey(settings: Settings): string {
   return savedKey;
 }
 
-function previewText(value: string): string {
-  return value.replace(/\s+/g, " ").slice(0, 160);
-}
-
 function elapsedMs(startedAt: number): number {
   return Date.now() - startedAt;
 }
@@ -119,9 +156,7 @@ async function callService(activeText: string, contextText: string, settings: Se
     activeTextLength: activeText.length,
     contextTextLength: contextText.length,
     model: settings.model.trim(),
-    requestBodyBytes: JSON.stringify(requestBody).length,
-    activeTextPreview: previewText(activeText),
-    contextTextPreview: previewText(contextText)
+    requestBodyBytes: JSON.stringify(requestBody).length
   });
 
   // Keep one local timeout signal that still honors caller cancellation so stale compose requests can
@@ -151,8 +186,7 @@ async function callService(activeText: string, contextText: string, settings: Se
       endpoint,
       elapsedMs: elapsedMs(startedAt),
       status: response.status,
-      bodyLength: responseText.length,
-      bodyPreview: previewText(responseText)
+      bodyLength: responseText.length
     });
 
     if (!response.ok) {
@@ -183,7 +217,7 @@ async function callService(activeText: string, contextText: string, settings: Se
     if (normalized.recovered) {
       debugLog(settings.debugMode, "background:llm", "Recovered corrected_text from non-standard response", {
         sourceField: normalized.sourceField,
-        correctedTextPreview: previewText(normalized.correctedText)
+        correctedTextLength: normalized.correctedText.length
       });
     }
 
@@ -192,8 +226,7 @@ async function callService(activeText: string, contextText: string, settings: Se
       sourceField: normalized.sourceField,
       recovered: normalized.recovered,
       correctedTextLength: normalized.correctedText.length,
-      changed: normalized.correctedText !== activeText,
-      correctedTextPreview: previewText(normalized.correctedText)
+      changed: normalized.correctedText !== activeText
     });
     return normalized;
   } catch (error) {
@@ -281,10 +314,26 @@ export async function checkText(payload: CheckRequest, settings: Settings, signa
  */
 export async function testConnection(settings: Settings): Promise<ConnectionTestResult> {
   try {
-    await callService("These updates is ready to send.", "", settings);
+    const caseResults: ConnectionTestCaseResult[] = [];
+    for (const testCase of CONNECTION_TEST_CASES) {
+      const result = await callService(testCase.activeText, testCase.contextText, settings);
+      const changed = result.correctedText !== testCase.activeText;
+      const ok = changed === testCase.expectChange;
+      caseResults.push({
+        name: testCase.name,
+        ok,
+        detail: ok
+          ? result.correctedText
+          : testCase.expectChange
+            ? "did not correct the sample sentence"
+            : "changed text that should stay unchanged"
+      });
+    }
+
     return {
-      ok: true,
-      message: "Connection succeeded. Your language service returned a valid response."
+      ok: caseResults.every((result) => result.ok),
+      message: formatConnectionTestMessage(caseResults),
+      caseResults
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

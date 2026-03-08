@@ -2,6 +2,14 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.4.23] - 2026-03-08
+
+### Changed
+
+- Added insertion-only local grammar suggestions so missing helper words and punctuation can appear as inline fixes
+- Made `Test connection` run three benchmark-style sample checks, keep results out of saved settings, and show each case on its own line in the options page
+- Improved settings sanitization, reduced sensitive debug logging by default, refreshed overlay positioning after scroll or resize, and removed the unused `notifications` permission
+
 ## [0.4.22] - 2026-03-08
 
 ### Changed

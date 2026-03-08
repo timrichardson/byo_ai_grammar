@@ -24,6 +24,7 @@ const MAX_SUGGESTIONS = 6;
 type SuggestionChunk = {
   originalTokens: Token[];
   correctedTokens: Token[];
+  anchorOffset: number;
 };
 
 function tokenize(text: string): Token[] {
@@ -162,9 +163,20 @@ function buildSuggestionChunks(operations: DiffOperation[]): SuggestionChunk[] {
       break;
     }
 
+    const previousOperation = cursor > 0 ? operations[cursor - 1] : null;
+    const nextOperation = nextCursor < operations.length ? operations[nextCursor] : null;
+    const anchorOffset = originalTokens.length > 0
+      ? originalTokens[0].start
+      : previousOperation?.type === "equal"
+        ? previousOperation.original.end
+        : nextOperation?.type === "equal"
+          ? nextOperation.original.start
+          : 0;
+
     chunks.push({
       originalTokens,
-      correctedTokens
+      correctedTokens,
+      anchorOffset
     });
     cursor = nextCursor;
   }
@@ -190,12 +202,8 @@ export function buildSuggestionsFromCorrection(originalText: string, correctedTe
   const suggestions: GrammarSuggestion[] = [];
 
   for (const chunk of chunks) {
-    if (chunk.originalTokens.length === 0) {
-      continue;
-    }
-
-    const start = chunk.originalTokens[0].start;
-    const end = chunk.originalTokens[chunk.originalTokens.length - 1].end;
+    const start = chunk.originalTokens.length > 0 ? chunk.originalTokens[0].start : chunk.anchorOffset;
+    const end = chunk.originalTokens.length > 0 ? chunk.originalTokens[chunk.originalTokens.length - 1].end : chunk.anchorOffset;
     const originalChunkText = originalText.slice(start, end);
     const replacementText = chunk.correctedTokens.map((token) => token.text).join("");
     if (originalChunkText !== replacementText && !isWhitespaceOnlyChange(originalChunkText, replacementText)) {

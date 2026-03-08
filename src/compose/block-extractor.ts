@@ -20,11 +20,11 @@ export type SignatureDebugState = {
   signatureMarkerOffset: number | null;
   exclusionBoundaryOffset: number | null;
   selectionElementTag: string | null;
-  selectionBlockText: string | null;
+  selectionBlockTextLength: number | null;
   selectionOffset: number | null;
   selectionInsideSignature: boolean;
-  bodyText: string;
-  bodyHtml: string;
+  bodyTextLength: number;
+  bodyHtmlLength: number;
 };
 
 /** Snapshot of the selected compose blocks queued for a manual compose-action check. */
@@ -240,11 +240,11 @@ export function getSignatureDebugState(): SignatureDebugState {
     signatureMarkerOffset: signatureOffset,
     exclusionBoundaryOffset: getExclusionBoundaryOffset(bodyText),
     selectionElementTag: selectionElement?.tagName ?? null,
-    selectionBlockText: selectionBlock?.innerText ?? null,
+    selectionBlockTextLength: selectionBlock?.innerText.length ?? null,
     selectionOffset,
     selectionInsideSignature: isSelectionInsideSignature(),
-    bodyText,
-    bodyHtml
+    bodyTextLength: bodyText.length,
+    bodyHtmlLength: bodyHtml.length
   };
 }
 

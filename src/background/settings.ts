@@ -1,8 +1,17 @@
 import type { Settings } from "../shared/types";
+import { normalizeAllowlistEntries, normalizeCustomPrompt } from "../shared/prompt";
+
+export const SUPPORTED_DEBOUNCE_MS = [500, 900, 1500, 2000] as const;
+
+function normalizeDebounceMs(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && SUPPORTED_DEBOUNCE_MS.includes(value as typeof SUPPORTED_DEBOUNCE_MS[number])
+    ? value
+    : DEFAULT_SETTINGS.debounceMs;
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
-  debugMode: true,
+  debugMode: false,
   baseUrl: "https://api.together.xyz/v1",
   apiKey: "",
   model: "google/gemma-3n-E4B-it",
@@ -11,7 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
   grammarAllowlist: []
 };
 
-function sanitizeStoredSettings(value: unknown): Settings {
+export function sanitizeStoredSettings(value: unknown): Settings {
   const stored = (value && typeof value === "object") ? value as Partial<Settings> : {};
 
   return {
@@ -21,11 +30,11 @@ function sanitizeStoredSettings(value: unknown): Settings {
     baseUrl: typeof stored.baseUrl === "string" ? stored.baseUrl : DEFAULT_SETTINGS.baseUrl,
     apiKey: typeof stored.apiKey === "string" ? stored.apiKey : DEFAULT_SETTINGS.apiKey,
     model: typeof stored.model === "string" ? stored.model : DEFAULT_SETTINGS.model,
-    debounceMs: typeof stored.debounceMs === "number" ? stored.debounceMs : DEFAULT_SETTINGS.debounceMs,
-    customPrompt: typeof stored.customPrompt === "string" ? stored.customPrompt : DEFAULT_SETTINGS.customPrompt,
-    grammarAllowlist: Array.isArray(stored.grammarAllowlist)
+    debounceMs: normalizeDebounceMs(stored.debounceMs),
+    customPrompt: normalizeCustomPrompt(typeof stored.customPrompt === "string" ? stored.customPrompt : DEFAULT_SETTINGS.customPrompt),
+    grammarAllowlist: normalizeAllowlistEntries(Array.isArray(stored.grammarAllowlist)
       ? stored.grammarAllowlist.filter((entry): entry is string => typeof entry === "string")
-      : DEFAULT_SETTINGS.grammarAllowlist
+      : DEFAULT_SETTINGS.grammarAllowlist)
   };
 }
 
