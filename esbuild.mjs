@@ -6,6 +6,7 @@ const watch = process.argv.includes("--watch");
 const root = process.cwd();
 const dist = path.join(root, "dist");
 const publicDir = path.join(root, "public");
+const buildStamp = new Date().toISOString().replace(/[-:]/g, "").replace(".", "-").replace("T", "_").replace("Z", "Z");
 
 function prepareDist() {
   rmSync(dist, { recursive: true, force: true });
@@ -17,7 +18,10 @@ const shared = {
   bundle: true,
   sourcemap: true,
   target: "firefox128",
-  logLevel: "info"
+  logLevel: "info",
+  define: {
+    __BYO_AI_GRAMMAR_BUILD_STAMP__: JSON.stringify(buildStamp)
+  }
 };
 
 const builds = [

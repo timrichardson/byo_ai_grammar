@@ -2,8 +2,52 @@ import { checkText, testConnection } from "./llm-client";
 import { createMenus } from "./menu";
 import { registerComposeScript } from "./register-compose-script";
 import { getSettings, saveSettings } from "./settings";
-import { buildCacheKey, pausedTabs, responseCache } from "./state";
+import { buildCacheKey, clearInflightRequest, getInflightRequestIds, pausedTabs, registerInflightRequest, responseCache, selectionTabs } from "./state";
+import { getBuildFingerprint } from "../shared/build-info";
+import { debugLog, formatDebugPrefix, formatStartupPrefix } from "../shared/debug";
 import type { RuntimeMessage } from "../shared/messages";
+
+const manifest = browser.runtime.getManifest();
+console.info(`${formatStartupPrefix()} Background startup ${getBuildFingerprint(manifest.version)}`);
+
+const ACTIVE_COMPOSE_ACTION_ICON = {
+  16: "icons/icon-16.svg",
+  32: "icons/icon-32.svg",
+  64: "icons/icon-64.svg",
+  128: "icons/icon-128.svg"
+} as const;
+
+const PAUSED_COMPOSE_ACTION_ICON = {
+  16: "icons/icon-paused-16.svg",
+  32: "icons/icon-paused-32.svg",
+  64: "icons/icon-paused-64.svg",
+  128: "icons/icon-paused-128.svg"
+} as const;
+
+async function syncComposeAction(tabId: number) {
+  const paused = pausedTabs.has(tabId);
+  const hasSelection = selectionTabs.has(tabId);
+
+  await browser.composeAction.setLabel({
+    tabId,
+    label: paused ? "Off" : hasSelection ? "Check" : "On"
+  });
+  await browser.composeAction.setTitle({
+    tabId,
+    title: paused
+      ? "Resume grammar suggestions for this draft"
+      : hasSelection
+        ? "Check the selected text"
+        : "Pause grammar suggestions for this draft"
+  });
+  await browser.composeAction.setIcon({
+    tabId,
+    path: paused ? PAUSED_COMPOSE_ACTION_ICON : ACTIVE_COMPOSE_ACTION_ICON
+  });
+  await browser.composeAction.setBadgeText({ tabId, text: paused ? "" : hasSelection ? "Sel" : "" });
+}
+
+void browser.composeAction.setLabel({ label: "On" });
 
 registerComposeScript();
 createMenus();
@@ -17,22 +61,28 @@ browser.composeAction.onClicked.addListener(async (tab: { id?: number }) => {
     return;
   }
 
-  if (pausedTabs.has(tab.id)) {
-    pausedTabs.delete(tab.id);
-    await browser.composeAction.setTitle({
-      tabId: tab.id,
-      title: "Pause BYO AI Grammar for this message"
-    });
-    await browser.composeAction.setBadgeText({ tabId: tab.id, text: "" });
-  } else {
-    pausedTabs.add(tab.id);
-    await browser.composeAction.setTitle({
-      tabId: tab.id,
-      title: "Resume BYO AI Grammar for this message"
-    });
-    await browser.composeAction.setBadgeText({ tabId: tab.id, text: "PAUSE" });
-    await browser.composeAction.setBadgeBackgroundColor({ tabId: tab.id, color: "#a61b1b" });
+  if (selectionTabs.has(tab.id) && !pausedTabs.has(tab.id)) {
+    try {
+      const response = await browser.tabs.sendMessage(tab.id, { type: "compose:runSelectedTextCheck" } satisfies RuntimeMessage) as { handled: boolean };
+      if (response?.handled) {
+        return;
+      }
+    } catch (error) {
+      console.error("Unable to trigger selected-text grammar check", error);
+    }
+
+    selectionTabs.delete(tab.id);
+    await syncComposeAction(tab.id);
+    return;
   }
+
+  const paused = !pausedTabs.has(tab.id);
+  if (paused) {
+    pausedTabs.add(tab.id);
+  } else {
+    pausedTabs.delete(tab.id);
+  }
+  await syncComposeAction(tab.id);
 });
 
 browser.menus.onClicked.addListener(async (info: { menuItemId?: string }, tab?: { id?: number }) => {
@@ -45,12 +95,10 @@ browser.menus.onClicked.addListener(async (info: { menuItemId?: string }, tab?: 
     const paused = !pausedTabs.has(tab.id);
     if (paused) {
       pausedTabs.add(tab.id);
-      await browser.composeAction.setBadgeText({ tabId: tab.id, text: "PAUSE" });
-      await browser.composeAction.setBadgeBackgroundColor({ tabId: tab.id, color: "#a61b1b" });
     } else {
       pausedTabs.delete(tab.id);
-      await browser.composeAction.setBadgeText({ tabId: tab.id, text: "" });
     }
+    await syncComposeAction(tab.id);
   }
 });
 
@@ -64,6 +112,13 @@ browser.runtime.onMessage.addListener((message: RuntimeMessage, sender: { tab?: 
       return getSettings();
     case "settings:set":
       return saveSettings(message.settings).then(() => ({ ok: true }));
+    case "debug:log":
+      if (typeof message.details === "undefined") {
+        console.info(`${formatDebugPrefix(`compose-mirror:${message.scope}`)} ${message.message}`);
+      } else {
+        console.info(`${formatDebugPrefix(`compose-mirror:${message.scope}`)} ${message.message}`, message.details);
+      }
+      return Promise.resolve({ ok: true });
     case "allowlist:add":
       return getSettings().then(async (settings) => {
         const nextSettings = {
@@ -76,21 +131,43 @@ browser.runtime.onMessage.addListener((message: RuntimeMessage, sender: { tab?: 
       });
     case "connection:test":
       return getSettings().then((settings) => testConnection(settings));
+    case "tab:getCurrent":
+      if (typeof sender.tab?.id === "number") {
+        void syncComposeAction(sender.tab.id);
+      }
+      return Promise.resolve({ tabId: typeof sender.tab?.id === "number" ? sender.tab.id : null });
     case "tab:pause": {
       if (message.paused) {
         pausedTabs.add(message.tabId);
       } else {
         pausedTabs.delete(message.tabId);
       }
+      void syncComposeAction(message.tabId);
       return Promise.resolve({ ok: true });
     }
     case "tab:isPaused":
       return Promise.resolve({ paused: pausedTabs.has(message.tabId) });
+    case "tab:selection":
+      if (message.hasSelection) {
+        selectionTabs.add(message.tabId);
+      } else {
+        selectionTabs.delete(message.tabId);
+      }
+      void syncComposeAction(message.tabId);
+      return Promise.resolve({ ok: true });
     case "check:request":
       return getSettings().then(async (settings) => {
+        debugLog(settings.debugMode, "background", "Received check request", {
+          requestId: message.payload.requestId,
+          tabId: message.payload.tabId,
+          activeBlockId: message.payload.activeBlockId,
+          activeTextLength: message.payload.activeText.length
+        });
+
         if (!settings.enabled) {
           return {
             ok: false,
+            requestId: message.payload.requestId,
             code: "disabled",
             message: "Grammar suggestions are disabled in settings."
           };
@@ -99,6 +176,7 @@ browser.runtime.onMessage.addListener((message: RuntimeMessage, sender: { tab?: 
         if (pausedTabs.has(message.payload.tabId)) {
           return {
             ok: false,
+            requestId: message.payload.requestId,
             code: "paused",
             message: "Grammar suggestions are paused for this message."
           };
@@ -114,12 +192,60 @@ browser.runtime.onMessage.addListener((message: RuntimeMessage, sender: { tab?: 
         });
         const cached = responseCache.get(cacheKey);
         if (cached) {
-          return cached;
+          debugLog(settings.debugMode, "background", "Serving cached suggestions", {
+            requestId: message.payload.requestId,
+            suggestionCount: cached.suggestions.length
+          });
+          return {
+            ok: true,
+            requestId: message.payload.requestId,
+            correctedTextByBlock: {
+              [message.payload.activeBlockId]: cached.correctedText
+            },
+            suggestionsByBlock: {
+              [message.payload.activeBlockId]: cached.suggestions
+            }
+          };
         }
 
+        const existingInflightRequestIds = getInflightRequestIds(message.payload.tabId).filter(
+          (requestId) => requestId !== message.payload.requestId
+        );
+        if (existingInflightRequestIds.length > 0) {
+          debugLog(settings.debugMode, "background", "Leaving older in-flight requests running", {
+            requestId: message.payload.requestId,
+            tabId: message.payload.tabId,
+            inflightRequestIds: existingInflightRequestIds
+          });
+        }
+
+        const inflightCount = registerInflightRequest(message.payload.tabId, message.payload.requestId);
+        debugLog(settings.debugMode, "background", "Registered in-flight request", {
+          requestId: message.payload.requestId,
+          tabId: message.payload.tabId,
+          inflightCount
+        });
+
         const response = await checkText(message.payload, settings);
+        const remainingInflightCount = clearInflightRequest(message.payload.tabId, message.payload.requestId);
+        debugLog(settings.debugMode, "background", "Cleared in-flight request", {
+          requestId: message.payload.requestId,
+          tabId: message.payload.tabId,
+          remainingInflightCount
+        });
+
+        debugLog(settings.debugMode, "background", "Completed check request", {
+          requestId: message.payload.requestId,
+          ok: response.ok,
+          code: response.ok ? undefined : response.code,
+          suggestionCount: response.ok ? (response.suggestionsByBlock[message.payload.activeBlockId] ?? []).length : 0
+        });
+
         if (response.ok) {
-          responseCache.set(cacheKey, response);
+          responseCache.set(cacheKey, {
+            correctedText: response.correctedTextByBlock[message.payload.activeBlockId] ?? message.payload.activeText,
+            suggestions: response.suggestionsByBlock[message.payload.activeBlockId] ?? []
+          });
           if (responseCache.size > 40) {
             const firstKey = responseCache.keys().next().value;
             if (firstKey) {

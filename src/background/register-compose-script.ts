@@ -1,3 +1,9 @@
+/**
+ * Registers the compose script in an idempotent way.
+ *
+ * Thunderbird may restart or reload the background page while the compose script registration still
+ * exists, so duplicate-registration errors are treated as expected noise.
+ */
 export async function registerComposeScript(): Promise<void> {
   try {
     await browser.scripting.compose.registerScripts([

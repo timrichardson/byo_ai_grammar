@@ -6,7 +6,7 @@ const MENU_DEFINITIONS = [
   },
   {
     id: "writing-suggestions-pause-message",
-    title: "Pause BYO AI Grammar for This Message",
+    title: "Pause Grammar Suggestions for This Draft",
     contexts: ["compose_body", "editable", "selection"]
   }
 ];

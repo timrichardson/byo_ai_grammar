@@ -2,10 +2,11 @@ import type { Settings } from "../shared/types";
 
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
+  debugMode: true,
   baseUrl: "https://api.together.xyz/v1",
   apiKey: "",
-  model: "openai/gpt-oss-20b",
-  checkCurrentParagraphOnly: false,
+  model: "google/gemma-3n-E4B-it",
+  checkCurrentParagraphOnly: true,
   debounceMs: 900,
   customPrompt: "Focus on contemporary standard English with light formality.",
   grammarAllowlist: []

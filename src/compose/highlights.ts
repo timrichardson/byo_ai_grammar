@@ -1,8 +1,9 @@
 import { createRangeForOffsets } from "./range-mapper";
-import type { SuggestionIssue } from "../shared/types";
+import type { GrammarSuggestion } from "../shared/types";
 
+/** Overlay-backed highlight record for one active grammar suggestion. */
 type HighlightRecord = {
-  issue: SuggestionIssue;
+  issue: GrammarSuggestion;
   range: Range;
   buttons: HTMLButtonElement[];
 };
@@ -54,6 +55,8 @@ function ensureOverlay() {
 
   overlay = document.getElementById(OVERLAY_ID) as HTMLDivElement | null;
   if (!overlay) {
+    // Render extension-owned highlight affordances outside the editable body so suggestion UI never
+    // becomes part of the outgoing message content.
     overlay = document.createElement("div");
     overlay.id = OVERLAY_ID;
     document.documentElement.appendChild(overlay);
@@ -61,25 +64,26 @@ function ensureOverlay() {
   return overlay;
 }
 
+/** Removes all rendered suggestion highlights from the current compose window. */
 export function clearHighlights() {
   ensureOverlay().replaceChildren();
   records.clear();
 }
 
+/** Renders clickable highlight overlays for the active block's current suggestions. */
 export function renderHighlights(
   blockElement: HTMLElement,
-  blockId: string,
-  issues: SuggestionIssue[],
+  issues: GrammarSuggestion[],
   onActivate: (issueId: string, anchorRect: DOMRect) => void
 ) {
   const root = ensureOverlay();
   for (const issue of issues) {
-    const range = createRangeForOffsets(blockElement, issue.offset, issue.offset + issue.length);
+    const range = createRangeForOffsets(blockElement, issue.start, issue.end);
     if (!range) {
       continue;
     }
 
-    const issueId = `${blockId}:${issue.offset}:${issue.length}`;
+    const issueId = issue.id;
     const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 1 && rect.height > 1);
     const buttons: HTMLButtonElement[] = [];
 
@@ -108,6 +112,7 @@ export function renderHighlights(
   }
 }
 
+/** Returns the current overlay metadata for a suggestion, if it is still rendered. */
 export function getHighlightRecord(issueId: string): HighlightRecord | null {
   return records.get(issueId) ?? null;
 }

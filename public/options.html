@@ -12,6 +12,7 @@
         <p class="eyebrow">BYO AI Grammar</p>
         <h1>Configure your language service</h1>
         <p class="lede">Text near your cursor is sent to the language service you configure here. Use a Together.ai OpenAI-compatible endpoint or any compatible server you trust.</p>
+        <p id="version" class="version"></p>
       </header>
 
       <form id="settings-form" class="panel">
@@ -33,6 +34,14 @@
             </span>
           </label>
 
+          <label class="toggle">
+            <input type="checkbox" id="debugMode">
+            <span>
+              <strong>Enable debug logging</strong>
+              <small>Write detailed lifecycle and compose-check logs to Thunderbird developer consoles.</small>
+            </span>
+          </label>
+
           <label class="field">
             <span>Check after you stop typing</span>
             <select id="debounceMs">
@@ -41,6 +50,7 @@
               <option value="1500">1.5 seconds</option>
               <option value="2000">2 seconds</option>
             </select>
+            <small>Default: 0.9 seconds. Change this if you want faster checks or fewer requests while typing.</small>
           </label>
 
           <label class="field">
@@ -61,7 +71,8 @@
 
             <label class="field">
               <span>Model</span>
-              <input type="text" id="model" placeholder="openai/gpt-oss-20b">
+              <input type="text" id="model" placeholder="google/gemma-3n-E4B-it">
+              <small>Default: <code>google/gemma-3n-E4B-it</code>. Keep this as a plain model string so you can swap providers or compare cheaper models.</small>
             </label>
 
             <label class="field full-width">
@@ -82,6 +93,7 @@
         <section class="section privacy">
           <h2>Privacy</h2>
           <p>Only text near your cursor is sent for analysis. The extension does not use analytics or telemetry.</p>
+          <p class="hint">If debug logging is enabled, inspect the Browser Console or the add-on entry in Debug Add-ons to review request ids, stale-response drops, and service errors.</p>
         </section>
 
         <footer class="actions">

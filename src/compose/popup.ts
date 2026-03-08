@@ -1,10 +1,12 @@
-import type { SuggestionIssue } from "../shared/types";
+import type { GrammarSuggestion } from "../shared/types";
 
 const POPUP_ID = "writing-suggestions-popup";
 let popup: HTMLDivElement | null = null;
 
 function ensurePopup() {
   if (!popup) {
+    // Keep extension controls outside the editable compose body so the popup cannot leak into the
+    // outgoing draft HTML or interfere with Thunderbird's own selection container.
     popup = document.createElement("div");
     popup.id = POPUP_ID;
     popup.hidden = true;
@@ -23,19 +25,23 @@ function ensurePopup() {
   return popup;
 }
 
+/** Hides the suggestion popup and clears any previously rendered controls. */
 export function hidePopup() {
   const element = ensurePopup();
   element.hidden = true;
   element.replaceChildren();
 }
 
+/** Shows the suggestion popup anchored near the selected grammar highlight. */
 export function showPopup(args: {
-  issue: SuggestionIssue;
+  issue: GrammarSuggestion;
   anchorRect: DOMRect;
   onReplace: (replacement: string) => void;
   onPause: () => void;
   onIgnore: () => void;
   onAllow: () => void;
+  replacements?: Array<{ label: string; value: string }>;
+  showAllowButton?: boolean;
 }) {
   const element = ensurePopup();
   element.replaceChildren();
@@ -50,17 +56,21 @@ export function showPopup(args: {
   list.style.display = "flex";
   list.style.flexDirection = "column";
   list.style.gap = "8px";
-  if (args.issue.suggestions.length === 0) {
+  const replacements = args.replacements ?? args.issue.suggestions.slice(0, 3).map((suggestion) => ({
+    label: suggestion,
+    value: suggestion
+  }));
+  if (replacements.length === 0) {
     const empty = document.createElement("div");
     empty.textContent = "No replacement suggestion returned.";
     empty.style.color = "rgba(248, 250, 252, 0.8)";
     empty.style.fontSize = "14px";
     list.appendChild(empty);
   } else {
-    for (const suggestion of args.issue.suggestions.slice(0, 3)) {
+    for (const replacement of replacements) {
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = suggestion;
+      button.textContent = replacement.label;
       button.style.border = "none";
       button.style.borderRadius = "10px";
       button.style.padding = "10px 12px";
@@ -68,7 +78,7 @@ export function showPopup(args: {
       button.style.cursor = "pointer";
       button.style.background = "#f8fafc";
       button.style.color = "#102a43";
-      button.addEventListener("click", () => args.onReplace(suggestion));
+      button.addEventListener("click", () => args.onReplace(replacement.value));
       list.appendChild(button);
     }
   }
@@ -109,7 +119,11 @@ export function showPopup(args: {
   pauseButton.style.color = "#f8fafc";
   pauseButton.addEventListener("click", args.onPause);
 
-  footer.append(ignoreButton, allowButton, pauseButton);
+  footer.append(ignoreButton);
+  if (args.showAllowButton !== false) {
+    footer.append(allowButton);
+  }
+  footer.append(pauseButton);
   element.appendChild(footer);
 
   const left = Math.max(12, Math.min(window.innerWidth - 332, args.anchorRect.left));

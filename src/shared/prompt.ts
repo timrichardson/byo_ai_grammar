@@ -1,17 +1,23 @@
+/**
+ * Prompt builders for conservative grammar-only compose checks.
+ *
+ * These helpers keep prompts short, enforce the corrected-text JSON contract, and bound custom user
+ * instructions so smaller OpenAI-compatible models remain predictable.
+ */
+
 const BASE_SYSTEM_PROMPT = [
   "You are a grammar checker for email composition.",
-  "Return JSON only.",
+  "Return exactly one JSON object.",
+  "The JSON object must contain exactly one key: corrected_text.",
+  "Do not return markdown, code fences, commentary, or extra keys.",
   "Target contemporary standard English with light formality.",
   "Keep suggestions conservative and practical for everyday professional email.",
   "Ignore spelling mistakes. Thunderbird handles spelling separately.",
   "Do not rewrite tone or style beyond what is needed for correctness.",
   "Preserve names, product names, quoted text, and meaning.",
-  "Return an object with an issues array.",
-  "Each issue must contain offset, length, text, type, message, and suggestions.",
-  'type must always be "grammar".',
-  "Offsets and lengths must match the exact submitted active_text string, not the context.",
-  "Keep suggestions short and concrete.",
-  "If the text is already acceptable, return an empty issues array."
+  "corrected_text must be the full corrected version of active_text.",
+  "If active_text is already acceptable, return active_text unchanged.",
+  "Only make small grammar corrections that can be applied locally."
 ];
 
 export const MAX_CUSTOM_PROMPT_CHARS = 600;
@@ -22,10 +28,12 @@ function normalizeWhitespace(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
+/** Normalizes user-provided custom instructions before they are embedded in the system prompt. */
 export function normalizeCustomPrompt(value: string): string {
   return normalizeWhitespace(value).slice(0, MAX_CUSTOM_PROMPT_CHARS);
 }
 
+/** Normalizes, deduplicates, and bounds allowlist entries before prompt or filter use. */
 export function normalizeAllowlistEntries(values: string[] | string): string[] {
   const rawValues = Array.isArray(values) ? values : values.split(/\r?\n/);
   const unique = new Set<string>();
@@ -56,6 +64,7 @@ export function normalizeAllowlistEntries(values: string[] | string): string[] {
   return normalized;
 }
 
+/** Builds the strict system and user prompt payload sent to the language service. */
 export function buildPrompt(args: {
   activeText: string;
   contextText: string;
@@ -67,7 +76,7 @@ export function buildPrompt(args: {
   const system = [
     ...BASE_SYSTEM_PROMPT,
     allowlist.length > 0
-      ? `Do not flag these approved terms or phrases on their own: ${allowlist.join(" | ")}.`
+      ? `Do not change these approved terms or phrases on their own: ${allowlist.join(" | ")}.`
       : "",
     normalizedCustomPrompt ? `Additional user instructions: ${normalizedCustomPrompt}` : ""
   ]
@@ -77,21 +86,8 @@ export function buildPrompt(args: {
   return {
     system,
     user: JSON.stringify({
-      task: "Find clear grammar issues in the active email block. Ignore spelling mistakes.",
       active_text: args.activeText,
-      nearby_context: args.contextText,
-      output_schema: {
-        issues: [
-          {
-            offset: 0,
-            length: 0,
-            text: "example",
-            type: "grammar",
-            message: "Short explanation",
-            suggestions: ["example"]
-          }
-        ]
-      }
+      nearby_context: args.contextText
     })
   };
 }
