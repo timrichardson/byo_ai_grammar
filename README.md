@@ -9,10 +9,15 @@ This project is in early development. It currently targets Thunderbird 128+ and 
 ## Features
 
 - Grammar-only suggestions layered on top of Thunderbird compose windows
-- Nearby-paragraph context with an optional current-paragraph-only mode
+- Current-paragraph-only checking by default, with an optional nearby-paragraph mode
 - User-configured OpenAI-compatible server URL, model, and saved API key
 - Custom prompt support with a bounded prompt budget
 - Grammar allowlist for approved phrases and project-specific exceptions
+- Automatic exclusion of quoted reply text and email signatures from grammar checking
+- Corrected-text plus local diffing so inline suggestions do not depend on model-provided offsets
+- Request lifecycle guards that ignore stale responses while you keep typing
+- Compose-action `Check` mode for running one-off grammar checks on selected text with bounded nearby context
+- Debug logging for Browser Console and Debug Add-ons troubleshooting, enabled by default
 - Per-message pause control
 
 ## What You Need
@@ -76,7 +81,7 @@ npm run package
 That produces a file like:
 
 ```text
-byo_ai_grammar-0.3.0.xpi
+byo_ai_grammar-0.4.19.xpi
 ```
 
 ## Install In Thunderbird
@@ -114,13 +119,14 @@ After installation, open the add-on settings and configure:
 - saved API key
 - model string
 - grammar checking scope
+- debug logging toggle
 - custom grammar prompt
 - grammar allowlist entries
 
 Recommended Together.ai defaults:
 
 - Server URL: `https://api.together.xyz/v1`
-- Model: `openai/gpt-oss-20b`
+- Model: `google/gemma-3n-E4B-it`
 
 ## API Key Storage And Security
 
@@ -152,6 +158,9 @@ The workflow always uploads the `.xpi` as a workflow artifact. If you choose rel
 
 - `npm run watch` rebuilds while you edit
 - `npm run build` writes runtime files into `dist/`
+- `npm run test` runs focused unit tests for prompt, validation, diffing, and request helpers
+- `npm run replay:request -- --base-url https://api.together.xyz/v1 --model google/gemma-3n-E4B-it --active-text "These updates is ready to send."` replays a grammar request outside Thunderbird using `BYO_AI_GRAMMAR_API_KEY`, `TOGETHER_API_KEY`, or `OPENAI_API_KEY` and logs request timing
+- `npm run benchmark:models -- --base-url https://api.together.xyz/v1 --runs 2` benchmarks a default set of smaller Together chat models for contract reliability and latency using the same grammar prompt and the same supported env vars
 - `npm run package` creates a Thunderbird-installable `.xpi`
 - `package.json` and `public/manifest.json` should stay aligned on release versions
 
