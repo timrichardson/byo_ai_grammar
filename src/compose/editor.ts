@@ -11,6 +11,7 @@ import {
 import { composeDebugLog } from "./debug-log";
 import { clearHighlights, getHighlightRecord, renderHighlights } from "./highlights";
 import { hidePopup, showPopup } from "./popup";
+import { setStatusIndicator } from "./status-indicator";
 import type { RuntimeMessage } from "../shared/messages";
 import { clampJoinedContext } from "../shared/request-budget";
 import { isLatestRequest, matchesSnapshot } from "../shared/request-state";
@@ -21,8 +22,13 @@ type HighlightedBlockState = {
   suggestions: GrammarSuggestion[];
 };
 
+type SuggestionSummaryContext =
+  | { mode: "single" }
+  | { mode: "selected"; blockCount: number };
+
 const ignoredIssueIds = new Set<string>();
 const highlightedBlocks = new Map<string, HighlightedBlockState>();
+let suggestionSummaryContext: SuggestionSummaryContext | null = null;
 
 function previewText(value: string): string {
   return value.replace(/\s+/g, " ").slice(0, 160);
@@ -97,9 +103,43 @@ function isBlockSnapshotCurrent(block: BlockInfo): BlockInfo | null {
   return matchesSnapshot(block.id, block.text, currentBlock.id, currentBlock.text) ? currentBlock : null;
 }
 
-function clearRenderedSuggestions() {
+function formatSuggestionSummary(count: number): CheckStatus | null {
+  if (!suggestionSummaryContext) {
+    return null;
+  }
+
+  if (suggestionSummaryContext.mode === "selected") {
+    return {
+      state: "success",
+      message: count === 0
+        ? "No grammar suggestions in the selected paragraphs."
+        : `${count} grammar suggestion${count === 1 ? "" : "s"} ready across ${suggestionSummaryContext.blockCount} selected paragraph${suggestionSummaryContext.blockCount === 1 ? "" : "s"}.`
+    };
+  }
+
+  return {
+    state: "success",
+    message: count === 0
+      ? "No grammar suggestions in this paragraph."
+      : `${count} grammar suggestion${count === 1 ? "" : "s"} ready.`
+  };
+}
+
+function syncRenderedSuggestionStatus() {
+  const summary = formatSuggestionSummary(totalHighlightedSuggestionCount());
+  if (!summary) {
+    return;
+  }
+
+  setStatusIndicator(summary.message, summary.state);
+}
+
+function clearRenderedSuggestions(resetSummaryContext = true) {
   clearHighlights();
   highlightedBlocks.clear();
+  if (resetSummaryContext) {
+    suggestionSummaryContext = null;
+  }
 }
 
 function totalHighlightedSuggestionCount(): number {
@@ -146,12 +186,14 @@ function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
         await browser.runtime.sendMessage({ type: "tab:pause", tabId, paused: true } satisfies RuntimeMessage);
         hidePopup();
         clearRenderedSuggestions();
+        setStatusIndicator("Grammar suggestions are paused for this draft.", "paused");
       },
       onIgnore: async () => {
         ignoredIssueIds.add(issueId);
         hidePopup();
         removeHighlightedSuggestion(issueId);
         renderAllHighlights(tabId, scheduleFreshCheck);
+        syncRenderedSuggestionStatus();
       },
       onAllow: async () => {
         await browser.runtime.sendMessage({
@@ -198,6 +240,7 @@ export async function runCheck(
   getLatestRequestId: () => number,
   scheduleFreshCheck: () => void
 ): Promise<CheckStatus> {
+  suggestionSummaryContext = { mode: "single" };
   const blocks = collectBlocks();
   const exclusionReason = getSelectionExclusionReason();
   const signatureState = getSignatureDebugState();
@@ -300,7 +343,7 @@ export async function runCheck(
     suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
   });
 
-  clearRenderedSuggestions();
+  clearRenderedSuggestions(false);
   setHighlightedBlockSuggestions(activeBlock, visibleSuggestions, tabId, scheduleFreshCheck);
 
   if (visibleSuggestions.length === 0) {
@@ -342,6 +385,8 @@ export async function runSelectedBlocksCheck(
       message: "Select one or more paragraphs to run a manual grammar check."
     };
   }
+
+  suggestionSummaryContext = { mode: "selected", blockCount: totalBlockCount };
 
   for (let index = 0; index < queuedBlocks.length; index += 1) {
     const requestId = nextRequestId();
