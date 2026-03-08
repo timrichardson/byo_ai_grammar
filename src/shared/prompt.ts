@@ -13,6 +13,7 @@ const BASE_SYSTEM_PROMPT = [
   "Target contemporary standard English with light formality.",
   "Keep suggestions conservative and practical for everyday professional email.",
   "Ignore spelling mistakes. Thunderbird handles spelling separately.",
+  "Correct clearly wrong function-word choices and homophone confusions only when the sentence is grammatically wrong in context, such as to/too/two, their/there/they're, your/you're, and its/it's.",
   "Do not rewrite tone or style beyond what is needed for correctness.",
   "Preserve names, product names, quoted text, and meaning.",
   "corrected_text must be the full corrected version of active_text.",

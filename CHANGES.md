@@ -2,6 +2,25 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.4.29] - 2026-03-08
+
+### Changed
+
+- Added a homophone-focused grammar benchmark set, tightened the universal grammar prompt for context-sensitive function-word mistakes, and verified `google/gemma-3n-E4B-it` against those cases
+
+## [0.4.28] - 2026-03-08
+
+### Changed
+
+- Added deletion-only grammar suggestions so fixes that remove a word now offer a usable inline action, such as removing `run` from `The cat run ran up the tree.`
+
+## [0.4.27] - 2026-03-08
+
+### Changed
+
+- Tracked paragraph suggestions by logical paragraph identity instead of transient DOM ids so refreshing one paragraph does not clear valid suggestions on others
+- Added paragraph-lane debug logging to show request replacement, paragraph remapping, and highlight render failures more clearly while debugging compose behavior
+
 ## [0.4.26] - 2026-03-08
 
 ### Changed

@@ -16,4 +16,17 @@ describe("buildPrompt", () => {
     expect(prompt.user).toContain("active_text");
     expect(prompt.user).not.toContain("output_schema");
   });
+
+  it("mentions contextual homophone corrections while staying grammar-focused", () => {
+    const prompt = buildPrompt({
+      activeText: "The orange frog can count to too.",
+      contextText: "",
+      customPrompt: "",
+      grammarAllowlist: []
+    });
+
+    expect(prompt.system).toContain("homophone confusions");
+    expect(prompt.system).toContain("to/too/two");
+    expect(prompt.system).toContain("Ignore spelling mistakes");
+  });
 });

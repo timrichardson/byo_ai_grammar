@@ -1,6 +1,7 @@
 import process from "node:process";
 
 import { DEFAULT_TIMEOUT_MS, analyzeGrammarResponse, createRequestBody, getApiKeyFromEnv, performGrammarRequest, resolveEndpoint } from "./grammar_request_common.mjs";
+import { getGrammarCaseSet } from "./grammar_test_cases.mjs";
 
 const DEFAULT_MODELS = [
   "arcee-ai/trinity-mini",
@@ -11,31 +12,11 @@ const DEFAULT_MODELS = [
   "openai/gpt-oss-20b"
 ];
 
-const DEFAULT_CASES = [
-  {
-    name: "fix-simple",
-    activeText: "These updates is ready to send.",
-    contextText: "",
-    expectChange: true
-  },
-  {
-    name: "keep-good",
-    activeText: "These updates are ready to send.",
-    contextText: "",
-    expectChange: false
-  },
-  {
-    name: "fix-short",
-    activeText: "This findings are useful.",
-    contextText: "",
-    expectChange: true
-  }
-];
-
 function parseArgs(argv) {
   const options = {
     model: [],
-    allowlist: []
+    allowlist: [],
+    "case-set": "basic"
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -80,6 +61,7 @@ function printHelp() {
   console.log("Optional:");
   console.log("  --model <model>        Repeat to override the default candidate list");
   console.log("  --runs <n>             Number of runs per case per model (default: 2)");
+  console.log("  --case-set <name>      basic, homophones, or all (default: basic)");
   console.log(`  --timeout-ms <n>       Timeout per request in milliseconds (default: ${DEFAULT_TIMEOUT_MS})`);
   console.log("  --custom-prompt <text> Extra prompt instructions");
   console.log("  --allowlist <value>    Repeat to add allowlist entries");
@@ -138,12 +120,18 @@ function evaluateCase(result, testCase) {
       activeText: testCase.activeText
     });
     const changed = analyzed.correctedText !== testCase.activeText;
-    const expectationOk = changed === testCase.expectChange;
+    const expectationOk = typeof testCase.expectedText === "string"
+      ? analyzed.correctedText === testCase.expectedText
+      : changed === testCase.expectChange;
 
     return {
       contractOk: true,
       expectationOk,
-      failure: expectationOk ? null : testCase.expectChange ? "did-not-correct" : "changed-good-text",
+      failure: expectationOk ? null : typeof testCase.expectedText === "string"
+        ? "wrong-correction"
+        : testCase.expectChange
+          ? "did-not-correct"
+          : "changed-good-text",
       latencyMs: result.bodyElapsedMs,
       details: analyzed.correctedText
     };
@@ -158,7 +146,7 @@ function evaluateCase(result, testCase) {
   }
 }
 
-async function benchmarkModel({ endpoint, apiKey, model, timeoutMs, runs, customPrompt, allowlist }) {
+async function benchmarkModel({ endpoint, apiKey, model, timeoutMs, runs, customPrompt, allowlist, cases }) {
   const failures = new Map();
   const sampleFailures = [];
   const latencies = [];
@@ -167,7 +155,7 @@ async function benchmarkModel({ endpoint, apiKey, model, timeoutMs, runs, custom
   let attempts = 0;
 
   for (let runIndex = 0; runIndex < runs; runIndex += 1) {
-    for (const testCase of DEFAULT_CASES) {
+    for (const testCase of cases) {
       attempts += 1;
       const requestBody = createRequestBody({
         model,
@@ -235,10 +223,12 @@ async function main() {
 
   const apiKey = getApiKeyFromEnv();
   const customPrompt = args["custom-prompt"] ?? "";
+  const cases = getGrammarCaseSet(args["case-set"]);
 
   console.log(`Endpoint: ${endpoint}`);
   console.log(`Runs per case: ${runs}`);
-  console.log(`Cases: ${DEFAULT_CASES.map((testCase) => testCase.name).join(", ")}`);
+  console.log(`Case set: ${args["case-set"]}`);
+  console.log(`Cases: ${cases.map((testCase) => testCase.name).join(", ")}`);
   console.log(`Models: ${models.join(", ")}`);
   console.log("");
 
@@ -251,7 +241,8 @@ async function main() {
       timeoutMs,
       runs,
       customPrompt,
-      allowlist: args.allowlist
+      allowlist: args.allowlist,
+      cases
     }));
     console.log("");
   }
