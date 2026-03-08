@@ -66,6 +66,8 @@ export type ConnectionTestResult = {
   caseResults?: Array<{
     name: string;
     ok: boolean;
+    activeText: string;
+    expectation: string;
     detail: string;
   }>;
 };

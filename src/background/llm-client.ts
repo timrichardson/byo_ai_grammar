@@ -37,6 +37,8 @@ const CONNECTION_TEST_CASES: ConnectionTestCase[] = [
 type ConnectionTestCaseResult = {
   name: string;
   ok: boolean;
+  activeText: string;
+  expectation: string;
   detail: string;
 };
 
@@ -322,6 +324,8 @@ export async function testConnection(settings: Settings): Promise<ConnectionTest
       caseResults.push({
         name: testCase.name,
         ok,
+        activeText: testCase.activeText,
+        expectation: testCase.expectChange ? "should change" : "should stay unchanged",
         detail: ok
           ? result.correctedText
           : testCase.expectChange

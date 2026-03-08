@@ -1,24 +1,43 @@
 # BYO AI Grammar
 
-`BYO AI Grammar` is a Thunderbird add-on that provides inline grammar suggestions while composing email. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends the current paragraph while typing, or explicitly selected paragraphs when you click `Check`, to a user-configured OpenAI-compatible endpoint such as Together.ai.
+`BYO AI Grammar` is a Thunderbird add-on that provides inline grammar suggestions while composing email, where you bring your LLM, as long as it follows the OpenAI API. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends the current paragraph while typing, or explicitly selected paragraphs when you click `Check`. In setting you configure the delay, the location of the model and the prompt. 
+It has been tested on small models that get lost easily. 
+
+This is alpha release. I have tested it only with together.ai on a very small model(fast, cheap and basic). It seems better than nothing. 
+
+## Screenshots
+
+Inline grammar highlights in the compose editor:
+
+![Inline grammar highlights](docs/images/grammar-highlight.png)
+
+Suggestion popup with replacement and quick actions:
+
+![Grammar suggestion popup](docs/images/grammar-popup.png)
 
 ## Status
 
-This project is in early development. It currently targets Thunderbird 128+ and uses a lightweight TypeScript build.
+This project is in early development. It currently targets Thunderbird 128. It has only been used on Ubuntu, on stable Thunderbird, only with together.ai as the model provider and only on a couple of models. The notes about building on other OS are best guesses.
 
 ## Features
 
-- Grammar-only suggestions layered on top of Thunderbird compose windows
+- Grammar-only suggestions layered on top of Thunderbird compose windows. 
+- It doesn't do spelling; there are good tools for that.
 - Current-paragraph-only checking while you type
 - User-configured OpenAI-compatible server URL, model, and saved API key
 - Custom prompt support with a bounded prompt budget
-- Grammar allowlist for approved phrases and project-specific exceptions
-- Automatic exclusion of email signatures from grammar checking
+- Grammar allowlist (small, only 50 entries arbitrarily),  support for approved phrases and project-specific exceptions
 - Corrected-text plus local diffing so inline suggestions do not depend on model-provided offsets
 - Request lifecycle guards that ignore stale responses while you keep typing
 - Compose-action `Check` mode for queueing selected paragraphs through the normal per-paragraph grammar suggestion flow
 - Optional debug logging for Browser Console and Debug Add-ons troubleshooting
 - Per-message pause control
+- Undo works the few times I've tried it so far. But I wouldn't bet on it.
+
+### Things to watch
+- It ignores pasted content, but you can select text and click the icon, or make some trivial change.
+  
+  
 
 ## What You Need
 

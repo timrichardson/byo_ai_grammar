@@ -142,6 +142,25 @@ function totalHighlightedSuggestionCount(): number {
   return Array.from(highlightedBlocks.values()).reduce((count, entry) => count + entry.suggestions.length, 0);
 }
 
+function pruneInvalidHighlightedBlocks() {
+  const currentBlocksById = new Map(collectBlocks().map((block) => [block.id, block]));
+
+  for (const [blockId, entry] of highlightedBlocks) {
+    const currentBlock = currentBlocksById.get(blockId);
+    if (!currentBlock || currentBlock.text !== entry.block.text) {
+      highlightedBlocks.delete(blockId);
+      continue;
+    }
+
+    if (currentBlock.element !== entry.block.element) {
+      highlightedBlocks.set(blockId, {
+        block: currentBlock,
+        suggestions: entry.suggestions
+      });
+    }
+  }
+}
+
 function removeHighlightedSuggestion(issueId: string) {
   for (const [blockId, entry] of highlightedBlocks) {
     const nextSuggestions = entry.suggestions.filter((suggestion) => suggestion.id !== issueId);
@@ -162,6 +181,7 @@ function removeHighlightedSuggestion(issueId: string) {
 }
 
 function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
+  pruneInvalidHighlightedBlocks();
   clearHighlights();
 
   const activate = (issueId: string, anchorRect: DOMRect) => {
@@ -332,7 +352,6 @@ export async function runCheck(
     suggestionIds: visibleSuggestions.map((suggestion) => suggestion.id)
   });
 
-  clearRenderedSuggestions(false);
   setHighlightedBlockSuggestions(activeBlock, visibleSuggestions, tabId, scheduleFreshCheck);
 
   if (visibleSuggestions.length === 0) {

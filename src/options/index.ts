@@ -48,7 +48,16 @@ function formatConnectionTestStatus(result: ConnectionTestResult): string {
 
   const summary = result.ok ? "Connection test passed:" : "Connection test found problems:";
   const lines = result.caseResults.map((caseResult) => `${caseResult.name}: ${caseResult.ok ? "ok" : caseResult.detail}`);
-  return [summary, ...lines].join("\n");
+  if (result.ok) {
+    return [summary, ...lines].join("\n");
+  }
+
+  const scenarioLines = [
+    "Sample checks:",
+    ...result.caseResults.map((caseResult) => `- ${caseResult.name}: \"${caseResult.activeText}\" (${caseResult.expectation})`),
+    "Start by checking `src/background/llm-client.ts`."
+  ];
+  return [summary, ...lines, ...scenarioLines].join("\n");
 }
 
 function updatePromptCount() {

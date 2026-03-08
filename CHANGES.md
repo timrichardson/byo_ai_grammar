@@ -2,6 +2,14 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.4.24] - 2026-03-08
+
+### Changed
+
+- Added README screenshots for inline highlights and the suggestion popup
+- Expanded connection-test failures to show the three sample checks and point contributors to `src/background/llm-client.ts`
+- Kept valid suggestions visible on previously checked paragraphs while only refreshing the paragraph that was rechecked
+
 ## [0.4.23] - 2026-03-08
 
 ### Changed
