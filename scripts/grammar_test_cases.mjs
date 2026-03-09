@@ -37,15 +37,15 @@ export const BASIC_GRAMMAR_CASES = [
     name: "fix-unusual-grammatical-no-period",
     activeText: "That's one step for a seal",
     contextText: "",
-    expectChange: true,
-    expectedText: "That's one step for a seal."
+    expectChange: false,
+    expectedText: "That's one step for a seal"
   },
   {
     name: "fix-unusual-grammatical-lowercase",
     activeText: "that's one step for a seal.",
     contextText: "",
-    expectChange: true,
-    expectedText: "That's one step for a seal."
+    expectChange: false,
+    expectedText: "that's one step for a seal."
   }
 ];
 

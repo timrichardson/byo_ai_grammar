@@ -25,6 +25,19 @@ This project is in early development. It currently targets Thunderbird 128. It h
 To provide free, basic English grammar checking as typo/mistake finder. I am a native English speaker so my grammatical errors are the result of poor typing and editing, not lack of English knowledge, so finding errors is more important than knowing how to fix them. 
 The tool will report the improvement suggestions of the LLM. I have only tested in on very small LLMs, which provide only basic grammar support.
 
+## Grammar Policy
+
+This add-on aims to report grammar corrections, not general copy editing.
+
+In particular, it does not treat these as grammar corrections on their own:
+
+- sentence-start capitalization only
+- sentence-final punctuation only
+- smart-quote substitutions only
+- semantic rewrites that replace nouns or add descriptive words without a local grammar need
+
+The extension prefers local grammatical fixes such as agreement, articles, missing or repeated words, and contextual homophone or function-word corrections.
+
 ## Features
 
 - Grammar-only suggestions layered on top of Thunderbird compose windows.
