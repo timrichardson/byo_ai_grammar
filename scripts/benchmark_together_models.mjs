@@ -4,9 +4,9 @@ import { DEFAULT_TIMEOUT_MS, analyzeGrammarResponse, createRequestBody, getApiKe
 import { getGrammarCaseSet } from "./grammar_test_cases.mjs";
 
 const DEFAULT_MODELS = [
+  "google/gemma-3n-E4B-it",
   "meta-llama/Meta-Llama-3-8B-Instruct-Lite",
   "arcee-ai/trinity-mini",
-  "google/gemma-3n-E4B-it",
   "Qwen/Qwen2.5-7B-Instruct-Turbo",
   "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
   "mistralai/Mistral-Small-24B-Instruct-2501",
@@ -62,7 +62,7 @@ function printHelp() {
   console.log("Optional:");
   console.log("  --model <model>        Repeat to override the default candidate list");
   console.log("  --runs <n>             Number of runs per case per model (default: 2)");
-  console.log("  --case-set <name>      basic, homophones, or all (default: basic)");
+  console.log("  --case-set <name>      basic, homophones, extended, or all (default: basic)");
   console.log(`  --timeout-ms <n>       Timeout per request in milliseconds (default: ${DEFAULT_TIMEOUT_MS})`);
   console.log("  --custom-prompt <text> Extra prompt instructions");
   console.log("  --allowlist <value>    Repeat to add allowlist entries");

@@ -7,6 +7,7 @@ This project follows Keep a Changelog principles and uses Semantic Versioning.
 ### Changed
 
 - Added prompt examples and local diff guardrails to suppress semantic quote-like rewrites, documented the grammar policy in `README.md`, and expanded the benchmark set for unusual-but-grammatical sentences
+- Changed the default Together model back to `google/gemma-3n-E4B-it` because it benchmarks strongly on the current grammar suites while remaining inexpensive
 
 ## [0.5.10] - 2026-03-09
 

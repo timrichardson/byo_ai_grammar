@@ -31,5 +31,7 @@ describe("buildPrompt", () => {
     expect(prompt.system).toContain("Ignore spelling mistakes");
     expect(prompt.system).toContain("Do not change the cognate or root word");
     expect(prompt.system).toContain("Example of what not to do");
+    expect(prompt.system).toContain("Put it over their");
+    expect(prompt.system).toContain("I have lived here since three years.");
   });
 });
