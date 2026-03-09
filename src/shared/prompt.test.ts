@@ -29,5 +29,7 @@ describe("buildPrompt", () => {
     expect(prompt.system).toContain("homophone confusions");
     expect(prompt.system).toContain("to/too/two");
     expect(prompt.system).toContain("Ignore spelling mistakes");
+    expect(prompt.system).toContain("Do not change the cognate or root word");
+    expect(prompt.system).toContain("Example of what not to do");
   });
 });

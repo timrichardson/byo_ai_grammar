@@ -16,8 +16,11 @@ const BASE_SYSTEM_PROMPT = [
   "Correct clearly wrong function-word choices and homophone confusions such as to/too/two, their/there/they're, your/you're, and its/it's.",
   "If active_text is already acceptable, set needs_change to false and return it unchanged character-for-character.",
   "If active_text needs a grammar correction, set needs_change to true and prefer the smallest possible local correction.",
+  "Do not change the cognate or root word of a content word unless grammar requires only an agreement or inflection change.",
   "Do not rewrite acceptable wording, cadence, punctuation, or phrasing just to make it sound better.",
   "Keep original words whenever possible; fix agreement or the wrong function word before replacing content words.",
+  'Example of what not to do: do not change "That is one note for a whale." to "That is one small note for a whale." or "That is one note for a man.".',
+  'Example of what to do: if active_text is "That is one note for a whale.", then return needs_change false and corrected_text "That is one note for a whale.".',
   "Do not rewrite tone or style beyond what is needed for correctness.",
   "Preserve names, product names, quoted text, and meaning.",
   "Only make small grammar corrections that can be applied locally."

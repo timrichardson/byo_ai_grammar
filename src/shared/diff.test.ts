@@ -93,4 +93,9 @@ describe("buildSuggestionsFromCorrection", () => {
     expect(buildSuggestionsFromCorrection('He said "hello".', 'He said “hello”.', "block-1")).toEqual([]);
     expect(buildSuggestionsFromCorrection("It's ready.", "It’s ready.", "block-1")).toEqual([]);
   });
+
+  it("ignores content-word substitutions that are not local grammar fixes", () => {
+    expect(buildSuggestionsFromCorrection("That's one step for a seal.", "That's one step for a man.", "block-1")).toEqual([]);
+    expect(buildSuggestionsFromCorrection("That's one step for a seal.", "That's one small step for a seal.", "block-1")).toEqual([]);
+  });
 });

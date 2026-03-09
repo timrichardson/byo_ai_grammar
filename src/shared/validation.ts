@@ -296,11 +296,12 @@ export function normalizeCorrectedTextResponse(raw: unknown, sourceText: string)
   const correctedText = needsChangeField?.value === false
     ? sourceText
     : normalizeCorrectedTextValue(correctedTextField.value, sourceText);
+  const effectiveNeedsChange = correctedText === sourceText ? false : needsChangeField?.value ?? null;
 
   return {
     correctedText,
     sourceField: correctedTextField.field,
     recovered: correctedTextField.recovered || Boolean(needsChangeField?.recovered),
-    needsChange: needsChangeField?.value ?? null
+    needsChange: effectiveNeedsChange
   };
 }

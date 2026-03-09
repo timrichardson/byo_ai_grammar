@@ -20,6 +20,18 @@ type DiffOperation =
 
 const TOKEN_PATTERN = /\s+|[^\s\p{L}\p{N}]|[\p{L}\p{N}]+/gu;
 const MAX_SUGGESTIONS = 6;
+const WORD_PATTERN = /^[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*$/u;
+const FUNCTION_WORDS = new Set([
+  "a", "an", "the", "this", "that", "these", "those",
+  "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them",
+  "my", "your", "his", "its", "our", "their", "mine", "yours", "ours", "theirs",
+  "am", "is", "are", "was", "were", "be", "been", "being",
+  "do", "does", "did", "have", "has", "had",
+  "will", "would", "shall", "should", "can", "could", "may", "might", "must",
+  "to", "too", "two", "there", "their", "they're", "your", "you're", "its", "it's",
+  "for", "of", "in", "on", "at", "by", "with", "from", "as", "if", "than", "then",
+  "and", "or", "but", "so", "nor", "yet", "not"
+]);
 
 type SuggestionChunk = {
   originalTokens: Token[];
@@ -112,6 +124,62 @@ function normalizeQuoteVariants(value: string): string {
 
 function isQuoteStyleOnlyChange(originalText: string, replacementText: string): boolean {
   return normalizeQuoteVariants(originalText) === normalizeQuoteVariants(replacementText);
+}
+
+function isWordToken(token: Token): boolean {
+  return WORD_PATTERN.test(token.text);
+}
+
+function normalizeLexeme(value: string): string {
+  const normalized = value.toLowerCase().replace(/’/g, "'");
+  if (FUNCTION_WORDS.has(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.endsWith("'s")) {
+    return normalized.slice(0, -2);
+  }
+  if (normalized.endsWith("ies") && normalized.length > 4) {
+    return `${normalized.slice(0, -3)}y`;
+  }
+  if (normalized.endsWith("ing") && normalized.length > 5) {
+    return normalized.slice(0, -3);
+  }
+  if (normalized.endsWith("ed") && normalized.length > 4) {
+    return normalized.slice(0, -2);
+  }
+  if (normalized.endsWith("es") && normalized.length > 4) {
+    return normalized.slice(0, -2);
+  }
+  if (normalized.endsWith("s") && normalized.length > 3) {
+    return normalized.slice(0, -1);
+  }
+
+  return normalized;
+}
+
+function getContentLexemes(tokens: Token[]): string[] {
+  return tokens
+    .filter((token) => isWordToken(token))
+    .map((token) => token.text.toLowerCase().replace(/’/g, "'"))
+    .filter((token) => !FUNCTION_WORDS.has(token))
+    .map((token) => normalizeLexeme(token));
+}
+
+function hasContentWordAgreementOnlyChange(originalTokens: Token[], correctedTokens: Token[]): boolean {
+  const originalLexemes = getContentLexemes(originalTokens);
+  const correctedLexemes = getContentLexemes(correctedTokens);
+
+  if (correctedLexemes.length === 0) {
+    return false;
+  }
+
+  if (originalLexemes.length === 0) {
+    return true;
+  }
+
+  return correctedLexemes.some((lexeme) => !originalLexemes.includes(lexeme))
+    || originalLexemes.some((lexeme) => !correctedLexemes.includes(lexeme));
 }
 
 function isWhitespaceEqual(operation: DiffOperation): operation is Extract<DiffOperation, { type: "equal" }> {
@@ -220,6 +288,7 @@ export function buildSuggestionsFromCorrection(originalText: string, correctedTe
       originalChunkText !== replacementText
       && !isWhitespaceOnlyChange(originalChunkText, replacementText)
       && !isQuoteStyleOnlyChange(originalChunkText, replacementText)
+      && !hasContentWordAgreementOnlyChange(chunk.originalTokens, chunk.correctedTokens)
     ) {
       suggestions.push({
         id: `${blockId}:${start}:${end}:${replacementText}`,

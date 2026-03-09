@@ -29,6 +29,15 @@ describe("normalizeCorrectedTextResponse", () => {
     });
   });
 
+  it("treats unchanged corrected_text as no change even if needs_change is true", () => {
+    expect(normalizeCorrectedTextResponse({ needs_change: true, corrected_text: "That's one step for a seal." }, "That's one step for a seal.")).toEqual({
+      correctedText: "That's one step for a seal.",
+      sourceField: "corrected_text",
+      recovered: false,
+      needsChange: false
+    });
+  });
+
   it("rejects an over-broad rewrite", () => {
     expect(() => normalizeCorrectedTextResponse({ corrected_text: "A much longer rewritten paragraph that changes the entire meaning and structure of the original sentence for no good reason at all." }, "Short text.")).toThrow(
       "over-broad rewrite"

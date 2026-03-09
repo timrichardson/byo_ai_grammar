@@ -18,6 +18,34 @@ export const BASIC_GRAMMAR_CASES = [
     activeText: "This findings are useful.",
     contextText: "",
     expectChange: true
+  },
+  {
+    name: "fix-article-preserve-noun",
+    activeText: "that's one step for an seal",
+    contextText: "",
+    expectChange: true,
+    expectedText: "that's one step for a seal"
+  },
+  {
+    name: "keep-unusual-grammatical",
+    activeText: "That's one step for a seal.",
+    contextText: "",
+    expectChange: false,
+    expectedText: "That's one step for a seal."
+  },
+  {
+    name: "fix-unusual-grammatical-no-period",
+    activeText: "That's one step for a seal",
+    contextText: "",
+    expectChange: true,
+    expectedText: "That's one step for a seal."
+  },
+  {
+    name: "fix-unusual-grammatical-lowercase",
+    activeText: "that's one step for a seal.",
+    contextText: "",
+    expectChange: true,
+    expectedText: "That's one step for a seal."
   }
 ];
 
