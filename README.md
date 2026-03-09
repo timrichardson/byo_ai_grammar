@@ -23,20 +23,24 @@ This project is in early development. It currently targets Thunderbird 128. It h
 
 ## Objective
 To provide free, basic English grammar checking as typo/mistake finder. I am a native English speaker so my grammatical errors are the result of poor typing and editing, not lack of English knowledge, so finding errors is more important than knowing how to fix them. 
-The tool will report the improvement suggestions of the LLM. I have only tested in on very small LLMs, which provide only basic grammar support.
+The tool will report the improvement suggestions of the LLM. I have only tested it on very small LLMs, which provide good but not native-speaker-level grammar support.
 
 ## Grammar Policy
 
 This add-on aims to report grammar corrections, not general copy editing.
 
-In particular, it does not treat these as grammar corrections on their own:
+In particular, by my choice, it does not treat these as grammar corrections on their own:
 
 - sentence-start capitalization only
 - sentence-final punctuation only
 - smart-quote substitutions only
-- semantic rewrites that replace nouns or add descriptive words without a local grammar need
 
-The extension prefers local grammatical fixes such as agreement, articles, missing or repeated words, and contextual homophone or function-word corrections.
+It is supposed to do this:
+- avoid semantic rewrites that replace nouns or add descriptive words without a local grammar need
+
+but LLMs are hard to control.
+
+The extension prefers small, localised grammatical fixes such as agreement, articles, missing or repeated words, and contextual homophone or function-word corrections.
 
 ## Features
 
@@ -44,7 +48,7 @@ The extension prefers local grammatical fixes such as agreement, articles, missi
 - It doesn't do spelling; there are good tools for that.
 - Current-paragraph-only checking while you type
 - User-configured OpenAI-compatible server URL, model, and saved API key
-- Custom prompt support with a bounded prompt budget
+- Custom prompt support with a bounded prompt budget, but the system prompt is pretty good.
 - Grammar allowlist support for approved phrases and project-specific exceptions (currently limited to 50 entries)
 - Corrected-text plus local diffing so inline suggestions do not depend on model-provided offsets
 - Request lifecycle guards that ignore stale responses while you keep typing
