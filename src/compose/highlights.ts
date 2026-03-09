@@ -19,6 +19,7 @@ const OVERLAY_ID = "writing-suggestions-overlay";
 const STYLE_ID = "writing-suggestions-style";
 const MIN_CLICK_TARGET_WIDTH = 18;
 const MIN_CLICK_TARGET_HEIGHT = 18;
+const MIN_VISIBLE_UNDERLINE_WIDTH = 12;
 const LIGHT_THEME_UNDERLINE = "#1769aa";
 const DARK_THEME_UNDERLINE = "#8fd0ff";
 const records = new Map<string, HighlightRecord>();
@@ -122,6 +123,15 @@ function expandClickTargetRect(rect: DOMRect): DOMRect {
   return new DOMRect(left, top, width, height);
 }
 
+function getVisibleUnderlineMetrics(rect: DOMRect, clickRect: DOMRect) {
+  const underlineWidth = Math.max(MIN_VISIBLE_UNDERLINE_WIDTH, rect.width);
+  const underlineLeft = Math.max(0, rect.left - clickRect.left - (underlineWidth - rect.width) / 2);
+  return {
+    underlineLeft,
+    underlineWidth
+  };
+}
+
 function queueRefresh() {
   if (refreshQueued) {
     return;
@@ -172,6 +182,7 @@ function renderGroup(group: HighlightRenderGroup, root: HTMLDivElement) {
 
     for (const rect of rects) {
       const clickRect = expandClickTargetRect(rect);
+      const underlineMetrics = getVisibleUnderlineMetrics(rect, clickRect);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "ws-highlight";
@@ -180,8 +191,8 @@ function renderGroup(group: HighlightRenderGroup, root: HTMLDivElement) {
       button.style.top = `${clickRect.top + window.scrollY}px`;
       button.style.width = `${clickRect.width}px`;
       button.style.height = `${clickRect.height}px`;
-      button.style.setProperty("--ws-underline-left", `${Math.max(0, rect.left - clickRect.left)}px`);
-      button.style.setProperty("--ws-underline-width", `${Math.max(0, rect.width)}px`);
+      button.style.setProperty("--ws-underline-left", `${underlineMetrics.underlineLeft}px`);
+      button.style.setProperty("--ws-underline-width", `${underlineMetrics.underlineWidth}px`);
       button.title = issue.message;
       button.addEventListener("click", (event) => {
         event.preventDefault();

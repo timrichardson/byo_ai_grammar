@@ -4,6 +4,7 @@ import { DEFAULT_TIMEOUT_MS, analyzeGrammarResponse, createRequestBody, getApiKe
 import { getGrammarCaseSet } from "./grammar_test_cases.mjs";
 
 const DEFAULT_MODELS = [
+  "meta-llama/Meta-Llama-3-8B-Instruct-Lite",
   "arcee-ai/trinity-mini",
   "google/gemma-3n-E4B-it",
   "Qwen/Qwen2.5-7B-Instruct-Turbo",

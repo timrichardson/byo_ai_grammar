@@ -2,6 +2,25 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.5.10] - 2026-03-09
+
+### Changed
+
+- Changed the default Together model to `meta-llama/Meta-Llama-3-8B-Instruct-Lite` after it passed the current basic and homophone benchmark sets
+- Improved tiny inline suggestion affordances by giving one-character fixes a minimum visible underline width
+
+## [0.5.9] - 2026-03-09
+
+### Changed
+
+- Rechecked only the edited paragraph immediately after applying a suggestion so remaining hints refresh quickly, and filtered out smart-quote-only changes as non-grammar noise
+
+## [0.5.8] - 2026-03-09
+
+### Changed
+
+- Gave very small inline grammar suggestions a minimum visible underline width so one-character fixes look clearly actionable instead of nearly invisible
+
 ## [0.5.7] - 2026-03-09
 
 ### Changed

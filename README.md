@@ -3,7 +3,7 @@
 `BYO AI Grammar` is a Thunderbird add-on that provides inline grammar suggestions while composing email. You bring your own LLM, as long as it follows the OpenAI API. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends the current paragraph while typing, or explicitly selected paragraphs when you click `Check`. In settings, you configure the delay, the model location, and the prompt.
 It has been tested with small models that can get lost easily. 
 
-This is an alpha release. I have tested it with Together.ai on a very small open-weights model, google/gemma-3n-E4B-it  (fast, cheap, and basic). The 
+This is an alpha release. I have tested it with Together.ai on smaller open-weights instruction models, and the current default is `meta-llama/Meta-Llama-3-8B-Instruct-Lite`.
 
 I have also tested it with LM Studio and the same model ("google/gemma-3-4b"). Also "gemma-3-12b-it" See notes below.
 
@@ -87,7 +87,7 @@ After installation, open the add-on settings and configure:
 Recommended Together.ai defaults:
 
 - Server URL: `https://api.together.xyz/v1`
-- Model: `google/gemma-3n-E4B-it`
+- Model: `meta-llama/Meta-Llama-3-8B-Instruct-Lite`
 
 ## Connecting To LLMs
 
@@ -98,7 +98,7 @@ Use the provider's OpenAI-compatible base URL, your model string, and your API k
 For Together.ai, the tested configuration is:
 
 - Server URL: `https://api.together.xyz/v1`
-- Model: `google/gemma-3n-E4B-it`
+- Model: `meta-llama/Meta-Llama-3-8B-Instruct-Lite`
 
 ### Local LLMs (LM Studio)
 
@@ -221,7 +221,7 @@ The workflow always uploads the `.xpi` as a workflow artifact. If you choose rel
 - `npm run watch` rebuilds while you edit
 - `npm run build` writes runtime files into `dist/`
 - `npm run test` runs focused unit tests for prompt, validation, diffing, and request helpers
-- `npm run replay:request -- --base-url https://api.together.xyz/v1 --model google/gemma-3n-E4B-it --active-text "These updates is ready to send."` replays a grammar request outside Thunderbird using `BYO_AI_GRAMMAR_API_KEY`, `TOGETHER_API_KEY`, or `OPENAI_API_KEY` and logs request timing
+- `npm run replay:request -- --base-url https://api.together.xyz/v1 --model meta-llama/Meta-Llama-3-8B-Instruct-Lite --active-text "These updates is ready to send."` replays a grammar request outside Thunderbird using `BYO_AI_GRAMMAR_API_KEY`, `TOGETHER_API_KEY`, or `OPENAI_API_KEY` and logs request timing
 - `npm run benchmark:models -- --base-url https://api.together.xyz/v1 --runs 2` benchmarks a default set of smaller Together chat models for contract reliability and latency using the same grammar prompt and the same supported env vars
 - `npm run package` creates a Thunderbird-installable `.xpi`
 - `npm run release:prepare -- --version 0.4.31` verifies a clean git tree, bumps the release version, commits it, builds a new `.xpi`, keeps only the newest three `.xpi` files, and creates a source `.zip` archive for add-on submission

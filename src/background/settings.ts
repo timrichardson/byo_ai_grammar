@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   debugMode: false,
   baseUrl: "https://api.together.xyz/v1",
   apiKey: "",
-  model: "google/gemma-3n-E4B-it",
+  model: "meta-llama/Meta-Llama-3-8B-Instruct-Lite",
   debounceMs: 900,
   customPrompt: "Focus on contemporary standard English with light formality.",
   grammarAllowlist: []
