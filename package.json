@@ -1,6 +1,6 @@
 {
   "name": "byo_ai_grammar",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "description": "Thunderbird extension for inline grammar suggestions via OpenAI-compatible language models, bring your own key",
   "main": "index.js",
   "scripts": {

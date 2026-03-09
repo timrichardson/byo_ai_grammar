@@ -2,6 +2,12 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.5.12] - 2026-03-09
+
+### Changed
+
+- Expanded the grammar benchmark coverage, refined prompt examples for unusual but grammatical sentences, and restored `google/gemma-3n-E4B-it` as the default Together model because it scores strongly while remaining inexpensive
+
 ## [0.5.11] - 2026-03-09
 
 ### Changed
