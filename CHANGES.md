@@ -2,6 +2,12 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.5.11] - 2026-03-09
+
+### Changed
+
+- Added prompt examples and local diff guardrails to suppress semantic quote-like rewrites, documented the grammar policy in `README.md`, and expanded the benchmark set for unusual-but-grammatical sentences
+
 ## [0.5.10] - 2026-03-09
 
 ### Changed
