@@ -22,6 +22,11 @@ type HighlightedBlockState = {
   suggestions: GrammarSuggestion[];
 };
 
+type ParagraphRefreshTarget = {
+  paragraphKey: string;
+  blockId: string;
+};
+
 type SuggestionSummaryContext =
   | { mode: "single" }
   | { mode: "selected"; blockCount: number };
@@ -231,10 +236,13 @@ function removeHighlightedParagraph(paragraphKey: string) {
   highlightedBlocks.delete(paragraphKey);
 }
 
-function getParagraphKeyForIssue(issueId: string): string | null {
+function getRefreshTargetForIssue(issueId: string): ParagraphRefreshTarget | null {
   for (const [paragraphKey, entry] of highlightedBlocks) {
     if (entry.suggestions.some((suggestion) => suggestion.id === issueId)) {
-      return paragraphKey;
+      return {
+        paragraphKey,
+        blockId: entry.block.id
+      };
     }
   }
 
@@ -263,7 +271,7 @@ function removeSuggestionFromState(issueId: string) {
   return false;
 }
 
-function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
+function renderAllHighlights(tabId: number, scheduleFreshCheck: (target?: ParagraphRefreshTarget) => void) {
   pruneInvalidHighlightedBlocks();
   if (pruneIgnoredIssueIds()) {
     void syncIgnoredSuggestionState(tabId);
@@ -280,15 +288,15 @@ function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
       issue: record.issue,
       anchorRect,
       onReplace: async (replacement) => {
+        const refreshTarget = getRefreshTargetForIssue(record.issue.id);
         replaceRange(record.range.cloneRange(), replacement);
-        const paragraphKey = getParagraphKeyForIssue(record.issue.id);
-        if (paragraphKey) {
-          removeHighlightedParagraph(paragraphKey);
+        if (refreshTarget) {
+          removeHighlightedParagraph(refreshTarget.paragraphKey);
         }
         hidePopup();
         renderAllHighlights(tabId, scheduleFreshCheck);
         syncRenderedSuggestionStatus();
-        scheduleFreshCheck();
+        scheduleFreshCheck(refreshTarget ?? undefined);
       },
       onPause: async () => {
         await browser.runtime.sendMessage({ type: "tab:pause", tabId, paused: true } satisfies RuntimeMessage);
@@ -304,6 +312,7 @@ function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
         await syncIgnoredSuggestionState(tabId);
       },
       onAllow: async () => {
+        const refreshTarget = getRefreshTargetForIssue(record.issue.id);
         await browser.runtime.sendMessage({
           type: "allowlist:add",
           phrase: record.issue.originalText
@@ -312,7 +321,7 @@ function renderAllHighlights(tabId: number, scheduleFreshCheck: () => void) {
         hidePopup();
         renderAllHighlights(tabId, scheduleFreshCheck);
         syncRenderedSuggestionStatus();
-        scheduleFreshCheck();
+        scheduleFreshCheck(refreshTarget ?? undefined);
       }
     });
   };
@@ -331,7 +340,7 @@ function setHighlightedBlockSuggestions(
   block: BlockInfo,
   suggestions: GrammarSuggestion[],
   tabId: number,
-  scheduleFreshCheck: () => void
+  scheduleFreshCheck: (target?: ParagraphRefreshTarget) => void
 ) {
   if (suggestions.length === 0) {
     highlightedBlocks.delete(block.paragraphKey);
@@ -366,7 +375,7 @@ export async function runCheck(
   tabId: number,
   requestId: number,
   _getLatestRequestId: () => number,
-  scheduleFreshCheck: () => void
+  scheduleFreshCheck: (target?: ParagraphRefreshTarget) => void
 ): Promise<CheckStatus> {
   debugLoggingEnabled = settings.debugMode;
   suggestionSummaryContext = { mode: "single" };
@@ -413,7 +422,7 @@ export async function runBlockCheck(
   tabId: number,
   requestId: number,
   getLatestParagraphRequestId: (paragraphKey: string) => number | undefined,
-  scheduleFreshCheck: () => void,
+  scheduleFreshCheck: (target?: ParagraphRefreshTarget) => void,
   blockSnapshot: BlockInfo,
   requestSource: "current-paragraph" | "previous-paragraph"
 ): Promise<CheckStatus> {
@@ -535,7 +544,7 @@ export async function runSelectedBlocksCheck(
   selectionSnapshot: SelectedBlocksSnapshot,
   nextRequestId: () => number,
   getLatestRequestId: () => number,
-  scheduleFreshCheck: () => void,
+  scheduleFreshCheck: (target?: ParagraphRefreshTarget) => void,
   onProgress: (message: string) => void
 ): Promise<CheckStatus> {
   debugLoggingEnabled = settings.debugMode;
@@ -656,7 +665,7 @@ export async function runSelectedBlocksCheck(
 }
 
 /** Clears all message-level ignore-once decisions and rerenders any still-valid suggestions. */
-export async function resetIgnoredSuggestions(tabId: number, scheduleFreshCheck: () => void) {
+export async function resetIgnoredSuggestions(tabId: number, scheduleFreshCheck: (target?: ParagraphRefreshTarget) => void) {
   ignoredIssueIds.clear();
   hidePopup();
   renderAllHighlights(tabId, scheduleFreshCheck);

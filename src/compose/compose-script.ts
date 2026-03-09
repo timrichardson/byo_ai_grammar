@@ -126,7 +126,7 @@ function scheduleCheck(immediate = false) {
       tabId,
       requestId,
       (paragraphKey: string) => latestAutomaticRequestIdByParagraphKey.get(paragraphKey),
-      () => scheduleCheck(true),
+      scheduleFreshCheck,
       activeBlock,
       "current-paragraph"
     );
@@ -144,6 +144,66 @@ function scheduleCheck(immediate = false) {
       }
     }
   }, delay);
+}
+
+function scheduleFreshCheck(target?: { paragraphKey: string; blockId: string }) {
+  if (target) {
+    void recheckParagraphImmediately(target);
+    return;
+  }
+
+  scheduleCheck(true);
+}
+
+async function recheckParagraphImmediately(target: { paragraphKey: string; blockId: string }) {
+  if (!settings || tabId < 0 || !settings.enabled) {
+    return;
+  }
+
+  const activeSettings = settings;
+  lastObservedBodyText = getBodyTextSnapshot();
+  const currentBlocks = collectBlocks();
+  const currentBlock = currentBlocks.find((block) => block.id === target.blockId)
+    ?? currentBlocks.find((block) => block.paragraphKey === target.paragraphKey)
+    ?? findActiveBlock(currentBlocks);
+  if (!currentBlock || !currentBlock.text.trim()) {
+    composeDebugLog(activeSettings.debugMode, "compose:block-remap", "Unable to recheck paragraph immediately after apply", {
+      paragraphKey: target.paragraphKey,
+      blockId: target.blockId,
+      reason: currentBlock ? "empty_text" : "paragraph_missing"
+    });
+    scheduleCheck(true);
+    return;
+  }
+
+  if (timer !== null) {
+    window.clearTimeout(timer);
+    timer = null;
+  }
+
+  const requestId = ++latestRequestId;
+  latestAutomaticRequestIdByParagraphKey.set(currentBlock.paragraphKey, requestId);
+  composeDebugLog(activeSettings.debugMode, "compose:request-lane", "Running immediate paragraph recheck after apply", {
+    requestId,
+    source: "current-paragraph",
+    tabId,
+    paragraphKey: currentBlock.paragraphKey,
+    blockId: currentBlock.id,
+    latestLaneRequestId: latestAutomaticRequestIdByParagraphKey.get(currentBlock.paragraphKey) ?? null
+  });
+  setStatusIndicator("Refreshing grammar suggestions in this paragraph...", "checking");
+  const result = await runBlockCheck(
+    activeSettings,
+    tabId,
+    requestId,
+    (nextParagraphKey: string) => latestAutomaticRequestIdByParagraphKey.get(nextParagraphKey),
+    scheduleFreshCheck,
+    currentBlock,
+    "current-paragraph"
+  );
+  if (!result.stale && requestId === latestRequestId) {
+    setStatusIndicator(result.message, result.state);
+  }
 }
 
 function schedulePreviousParagraphCheck(blockSnapshot: BlockInfo) {
@@ -201,7 +261,7 @@ function schedulePreviousParagraphCheck(blockSnapshot: BlockInfo) {
       tabId,
       requestId,
       (paragraphKey: string) => latestAutomaticRequestIdByParagraphKey.get(paragraphKey),
-      () => scheduleCheck(true),
+      scheduleFreshCheck,
       currentBlock,
       "previous-paragraph"
     );
@@ -285,7 +345,7 @@ async function bootstrap() {
           return Promise.resolve({ handled: false });
         }
 
-        void resetIgnoredSuggestions(tabId, () => scheduleCheck(true));
+        void resetIgnoredSuggestions(tabId, scheduleFreshCheck);
         return Promise.resolve({ handled: true });
       }
 
@@ -319,7 +379,7 @@ async function bootstrap() {
       selectionSnapshot,
       () => ++latestRequestId,
       getLatestRequestId,
-      () => scheduleCheck(true),
+      scheduleFreshCheck,
       (message: string) => setStatusIndicator(message, "checking")
     )
       .then((result: CheckStatus) => {

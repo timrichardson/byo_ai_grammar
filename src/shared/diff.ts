@@ -104,6 +104,16 @@ function isWhitespaceOnlyChange(originalText: string, replacementText: string): 
   return originalText.trim().length === 0 && replacementText.trim().length === 0;
 }
 
+function normalizeQuoteVariants(value: string): string {
+  return value
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"');
+}
+
+function isQuoteStyleOnlyChange(originalText: string, replacementText: string): boolean {
+  return normalizeQuoteVariants(originalText) === normalizeQuoteVariants(replacementText);
+}
+
 function isWhitespaceEqual(operation: DiffOperation): operation is Extract<DiffOperation, { type: "equal" }> {
   return operation.type === "equal" && /^\s+$/u.test(operation.original.text);
 }
@@ -206,7 +216,11 @@ export function buildSuggestionsFromCorrection(originalText: string, correctedTe
     const end = chunk.originalTokens.length > 0 ? chunk.originalTokens[chunk.originalTokens.length - 1].end : chunk.anchorOffset;
     const originalChunkText = originalText.slice(start, end);
     const replacementText = chunk.correctedTokens.map((token) => token.text).join("");
-    if (originalChunkText !== replacementText && !isWhitespaceOnlyChange(originalChunkText, replacementText)) {
+    if (
+      originalChunkText !== replacementText
+      && !isWhitespaceOnlyChange(originalChunkText, replacementText)
+      && !isQuoteStyleOnlyChange(originalChunkText, replacementText)
+    ) {
       suggestions.push({
         id: `${blockId}:${start}:${end}:${replacementText}`,
         start,

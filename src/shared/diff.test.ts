@@ -88,4 +88,9 @@ describe("buildSuggestionsFromCorrection", () => {
       suggestions: []
     });
   });
+
+  it("ignores smart-quote-only changes", () => {
+    expect(buildSuggestionsFromCorrection('He said "hello".', 'He said “hello”.', "block-1")).toEqual([]);
+    expect(buildSuggestionsFromCorrection("It's ready.", "It’s ready.", "block-1")).toEqual([]);
+  });
 });
