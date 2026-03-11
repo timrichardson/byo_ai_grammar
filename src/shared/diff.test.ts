@@ -94,6 +94,21 @@ describe("buildSuggestionsFromCorrection", () => {
     expect(buildSuggestionsFromCorrection("It's ready.", "It’s ready.", "block-1")).toEqual([]);
   });
 
+  it("emits a local suggestion for contraction corrections", () => {
+    const suggestions = buildSuggestionsFromCorrection(
+      "However, as I see it, its going to be ok",
+      "However, as I see it, it's going to be ok",
+      "block-1"
+    );
+
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]).toMatchObject({
+      originalText: "its",
+      replacementText: "it's",
+      suggestions: ["it's"]
+    });
+  });
+
   it("ignores content-word substitutions that are not local grammar fixes", () => {
     expect(buildSuggestionsFromCorrection("That's one step for a seal.", "That's one step for a man.", "block-1")).toEqual([]);
     expect(buildSuggestionsFromCorrection("That's one step for a seal.", "That's one small step for a seal.", "block-1")).toEqual([]);

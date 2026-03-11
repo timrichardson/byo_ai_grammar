@@ -2,6 +2,12 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.5.14] - 2026-03-11
+
+### Fixed
+
+- Fixed local diffing so contraction corrections such as `its` to `it's` now produce visible inline suggestions instead of being dropped after a successful model response
+
 ## [0.5.13] - 2026-03-11
 
 ### Changed

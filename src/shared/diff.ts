@@ -18,7 +18,7 @@ type DiffOperation =
   | { type: "delete"; original: Token }
   | { type: "insert"; corrected: Token };
 
-const TOKEN_PATTERN = /\s+|[^\s\p{L}\p{N}]|[\p{L}\p{N}]+/gu;
+const TOKEN_PATTERN = /\s+|[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|[^\s\p{L}\p{N}]/gu;
 const MAX_SUGGESTIONS = 6;
 const WORD_PATTERN = /^[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*$/u;
 const FUNCTION_WORDS = new Set([
