@@ -1,11 +1,11 @@
 # BYO AI Grammar
 
 `BYO AI Grammar` is a Thunderbird add-on that provides inline grammar suggestions while composing email. You bring your own LLM, as long as it follows the OpenAI API. It leaves Thunderbird's native spelling and personal dictionary behavior in place, and sends the current paragraph while typing, or explicitly selected paragraphs when you click `Check`. In settings, you configure the delay, the model location, and the prompt.
-It has been tested with small models that can get lost easily. 
+It has been tested with small models.  THey can get lost easily so the prompt is carefully tuned. 
 
 This is an alpha release. I have tested it with Together.ai on smaller open-weights instruction models, and the current default is `google/gemma-3n-E4B-it` because it benchmarks very well on the current grammar test sets while staying cheap.
 
-I have also tested it with LM Studio and the same model ("google/gemma-3-4b"). Also "gemma-3-12b-it" See notes below.
+I have also tested it with LM Studio and the same model ("google/gemma-3-4b"). Also "gemma-3-12b-it" See notes below. It would be surprising if cost more than a few cents per day.
 
 ## Thunderbird Add-ons
 
