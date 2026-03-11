@@ -46,6 +46,13 @@ const CONNECTION_TEST_CASES: ConnectionTestCase[] = [
     expectedText: "These updates are ready to send."
   },
   {
+    name: "fix-contraction",
+    activeText: "However, as I see it, its going to be ok.",
+    contextText: "",
+    expectChange: true,
+    expectedText: "However, as I see it, it's going to be ok."
+  },
+  {
     name: "fix-short",
     activeText: "This findings are useful.",
     contextText: "",

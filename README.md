@@ -34,18 +34,16 @@ In particular, by my choice, it does not treat these as grammar corrections on t
 - sentence-start capitalization only
 - sentence-final punctuation only
 - smart-quote substitutions only
+- semantic rewrites that replace nouns or add descriptive words without a local grammar need
 
-It is supposed to do this:
-- avoid semantic rewrites that replace nouns or add descriptive words without a local grammar need
+The extension prefers small, localised grammatical fixes such as agreement, articles, missing or repeated words, and contextual homophone, contraction, or function-word corrections.
 
-but LLMs are hard to control.
-
-The extension prefers small, localised grammatical fixes such as agreement, articles, missing or repeated words, and contextual homophone or function-word corrections.
+Context-dependent word-form mistakes such as `its` vs `it's` stay in scope here because they need grammatical interpretation, not just a dictionary lookup.
 
 ## Features
 
 - Grammar-only suggestions layered on top of Thunderbird compose windows.
-- It doesn't do spelling; there are good tools for that.
+- It doesn't try to replace Thunderbird spelling; it focuses on grammar plus context-dependent word-form errors such as `its` vs `it's`.
 - Current-paragraph-only checking while you type
 - User-configured OpenAI-compatible server URL, model, and saved API key
 - Custom prompt support with a bounded prompt budget, but the system prompt is pretty good.

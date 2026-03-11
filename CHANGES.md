@@ -2,6 +2,12 @@
 
 This project follows Keep a Changelog principles and uses Semantic Versioning.
 
+## [0.5.13] - 2026-03-11
+
+### Changed
+
+- Clarified that context-dependent word-form mistakes such as `its` vs `it's` stay in scope for grammar suggestions, added a prompt example for that case, and added it to the provider connection test samples
+
 ## [0.5.12] - 2026-03-09
 
 ### Changed

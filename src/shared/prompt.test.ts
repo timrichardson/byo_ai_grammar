@@ -20,7 +20,7 @@ describe("buildPrompt", () => {
 
   it("mentions contextual homophone corrections while staying grammar-focused", () => {
     const prompt = buildPrompt({
-      activeText: "The orange frog can count to too.",
+      activeText: "However, as I see it, its going to be ok",
       contextText: "",
       customPrompt: "",
       grammarAllowlist: []
@@ -28,10 +28,13 @@ describe("buildPrompt", () => {
 
     expect(prompt.system).toContain("homophone confusions");
     expect(prompt.system).toContain("to/too/two");
-    expect(prompt.system).toContain("Ignore spelling mistakes");
+    expect(prompt.system).toContain("ordinary spelling mistakes");
+    expect(prompt.system).toContain("contraction confusions");
+    expect(prompt.system).toContain("its/it's");
     expect(prompt.system).toContain("Do not change the cognate or root word");
     expect(prompt.system).toContain("Example of what not to do");
     expect(prompt.system).toContain("Put it over their");
+    expect(prompt.system).toContain("its going to be ok");
     expect(prompt.system).toContain("I have lived here since three years.");
   });
 });
