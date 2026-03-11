@@ -7,6 +7,10 @@ This is an alpha release. I have tested it with Together.ai on smaller open-weig
 
 I have also tested it with LM Studio and the same model ("google/gemma-3-4b"). Also "gemma-3-12b-it" See notes below.
 
+## Thunderbird Add-ons
+
+https://addons.thunderbird.net/en-US/thunderbird/addon/byo-ai-grammar/
+
 ## Screenshots
 
 Inline grammar highlights in the compose editor:
