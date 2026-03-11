@@ -7,6 +7,8 @@ This is an alpha release. I have tested it with Together.ai on smaller open-weig
 
 I have also tested it with LM Studio and the same model ("google/gemma-3-4b"). 
 
+I use Ubuntu and that's the only environment I test on.
+
 ## Thunderbird Add-ons
 
 https://addons.thunderbird.net/en-US/thunderbird/addon/byo-ai-grammar/
