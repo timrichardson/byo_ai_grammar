@@ -1,9 +1,9 @@
-import { getBuildFingerprint } from "../shared/build-info";
-
 type IndicatorState = "idle" | "checking" | "success" | "paused" | "error";
 
 const STYLE_ID = "byo-ai-grammar-status-style";
-const INDICATOR_ID = "byo-ai-grammar-status";
+const LEGACY_INDICATOR_ID = "byo-ai-grammar-status";
+const STATUS_MESSAGE_ATTRIBUTE = "data-byo-ai-grammar-status";
+const STATUS_STATE_ATTRIBUTE = "data-byo-ai-grammar-status-state";
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) {
@@ -13,7 +13,8 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    #${INDICATOR_ID} {
+    html[${STATUS_MESSAGE_ATTRIBUTE}]::after {
+      content: attr(${STATUS_MESSAGE_ATTRIBUTE});
       position: fixed;
       right: 16px;
       bottom: 16px;
@@ -27,24 +28,25 @@ function ensureStyles() {
       box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
       font: 13px/1.3 "IBM Plex Sans", "Segoe UI", sans-serif;
       pointer-events: none;
+      white-space: normal;
     }
 
-    #${INDICATOR_ID}[data-state="checking"] {
+    html[${STATUS_STATE_ATTRIBUTE}="checking"]::after {
       background: rgba(229, 246, 243, 0.98);
       color: #0b5246;
     }
 
-    #${INDICATOR_ID}[data-state="success"] {
+    html[${STATUS_STATE_ATTRIBUTE}="success"]::after {
       background: rgba(241, 245, 249, 0.98);
       color: #102a43;
     }
 
-    #${INDICATOR_ID}[data-state="paused"] {
+    html[${STATUS_STATE_ATTRIBUTE}="paused"]::after {
       background: rgba(255, 244, 229, 0.98);
       color: #8d2b0b;
     }
 
-    #${INDICATOR_ID}[data-state="error"] {
+    html[${STATUS_STATE_ATTRIBUTE}="error"]::after {
       background: rgba(255, 236, 236, 0.98);
       color: #a61b1b;
     }
@@ -52,28 +54,27 @@ function ensureStyles() {
   document.head.appendChild(style);
 }
 
-function ensureIndicator() {
-  ensureStyles();
-  const manifest = browser.runtime.getManifest();
-  const buildFingerprint = getBuildFingerprint(manifest.version);
-
-  let indicator = document.getElementById(INDICATOR_ID) as HTMLDivElement | null;
-  if (!indicator) {
-    indicator = document.createElement("div");
-    indicator.id = INDICATOR_ID;
-    indicator.dataset.state = "idle";
-    indicator.textContent = `BYO AI Grammar is on. Build ${buildFingerprint}.`;
-    document.documentElement.appendChild(indicator);
-  }
-
-  indicator.title = `Build ${buildFingerprint}`;
-
-  return indicator;
+function removeLegacyIndicatorNode() {
+  document.getElementById(LEGACY_INDICATOR_ID)?.remove();
 }
 
-/** Updates the floating compose status pill without touching the editable message body. */
+/**
+ * Updates the floating compose status pill without inserting user-visible text nodes into the draft DOM.
+ *
+ * Thunderbird can serialize stray compose-window text nodes into the outgoing message, so render the
+ * pill with CSS-generated content on the root element and scrub any older light-DOM indicator node.
+ */
 export function setStatusIndicator(message: string, state: IndicatorState) {
-  const indicator = ensureIndicator();
-  indicator.dataset.state = state;
-  indicator.textContent = message;
+  ensureStyles();
+  removeLegacyIndicatorNode();
+
+  const root = document.documentElement;
+  if (!message.trim()) {
+    root.removeAttribute(STATUS_MESSAGE_ATTRIBUTE);
+    root.removeAttribute(STATUS_STATE_ATTRIBUTE);
+    return;
+  }
+
+  root.setAttribute(STATUS_MESSAGE_ATTRIBUTE, message);
+  root.setAttribute(STATUS_STATE_ATTRIBUTE, state);
 }
